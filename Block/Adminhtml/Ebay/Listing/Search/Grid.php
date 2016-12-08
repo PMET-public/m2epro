@@ -77,7 +77,7 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractGrid
             ->select()
             ->from($this->resourceConnection->getTableName('catalog_product_entity_varchar'),
                 new \Zend_Db_Expr('MAX(`store_id`)'))
-            ->where("`entity_id` = `main_table`.`product_id`")
+            ->where("`row_id` = `main_table`.`product_id`")
             ->where("`attribute_id` = `ea`.`attribute_id`")
             ->where("`store_id` = 0 OR `store_id` = `l`.`store_id`");
 
@@ -99,7 +99,7 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractGrid
 
         $listingProductCollection->getSelect()->joinLeft(
             array('cpev' => $this->resourceConnection->getTableName('catalog_product_entity_varchar')),
-            "(`cpev`.`entity_id` = `main_table`.product_id)",
+            "(`cpev`.`row_id` = `main_table`.product_id)",
             array('value')
         );
 

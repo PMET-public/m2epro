@@ -458,7 +458,7 @@ class Product extends \Ess\M2ePro\Model\AbstractModel
               ->select()
               ->from($resource->getTableName('catalog_product_entity_varchar'), ['value'])
               ->where('store_id IN (?)', $storeIds)
-              ->where('entity_id = ?', (int)$productId)
+              ->where('row_id = ?', (int)$productId)
               ->where('attribute_id = ?', (int)$attributeId)
               ->order('store_id DESC')
               ->query();
@@ -1237,7 +1237,7 @@ class Product extends \Ess\M2ePro\Model\AbstractModel
               ->select()
               ->from($resource->getTableName('catalog_product_entity_varchar'), ['value'])
               ->where('store_id IN (?)', $storeIds)
-              ->where('entity_id = ?', (int)$this->getProductId())
+              ->where('row_id = ?', (int)$this->getProductId())
               ->where('attribute_id = ?', (int)$attributeId)
               ->order('store_id DESC')
               ->query();
