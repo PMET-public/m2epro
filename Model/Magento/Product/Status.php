@@ -60,8 +60,8 @@ class Status extends \Ess\M2ePro\Model\AbstractModel
 
         if ($storeId === null || $storeId == \Magento\Store\Model\Store::DEFAULT_STORE_ID) {
             $select = $adapter->select()
-                ->from($attributeTable, array('entity_id', 'value'))
-                ->where('entity_id IN (?)', $productIds)
+                ->from($attributeTable, array('row_id', 'value'))
+                ->where('row_id IN (?)', $productIds)
                 ->where('attribute_id = ?', $attribute->getAttributeId())
                 ->where('store_id = ?', \Magento\Store\Model\Store::DEFAULT_STORE_ID);
 
@@ -70,16 +70,16 @@ class Status extends \Ess\M2ePro\Model\AbstractModel
             $select = $adapter->select()
                 ->from(
                     array('t1' => $attributeTable),
-                    array('entity_id', 'IF(t2.value_id>0, t2.value, t1.value) as value'))
+                    array('row_id', 'IF(t2.value_id>0, t2.value, t1.value) as value'))
                 ->joinLeft(
                     array('t2' => $attributeTable),
-                    't1.entity_id = t2.entity_id AND t1.attribute_id = t2.attribute_id AND t2.store_id = '.
+                    't1.row_id = t2.row_id AND t1.attribute_id = t2.attribute_id AND t2.store_id = '.
                         (int)$storeId,
-                    array('t1.entity_id')
+                    array('t1.row_id')
                 )
                 ->where('t1.store_id = ?', \Magento\Store\Model\Store::DEFAULT_STORE_ID)
                 ->where('t1.attribute_id = ?', $attribute->getAttributeId())
-                ->where('t1.entity_id IN(?)', $productIds);
+                ->where('t1.row_id IN(?)', $productIds);
             $rows = $adapter->fetchPairs($select);
         }
 
