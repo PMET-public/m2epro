@@ -5,7 +5,7 @@
 
     <group id="default">
         <job name="ess_m2epro" instance="Ess\M2ePro\Model\Cron\Runner\Magento" method="process">
-            <schedule>* * * * *</schedule>
+            <schedule>*/5 * * * *</schedule>
         </job>
     </group>
 
