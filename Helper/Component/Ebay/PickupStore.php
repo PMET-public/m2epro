@@ -126,7 +126,7 @@ class PickupStore extends \Ess\M2ePro\Helper\AbstractHelper
         } catch (\Exception $exception) {
 
             $this->getHelper('Module\Exception')->process($exception);
-            $error = 'The Store has not been deleted. <br/>Reason: %error_message%';
+            $error = 'The Store has not been deleted. Reason: %error_message%';
             $error = $this->getHelper('Module\Translation')->__($error, $exception->getMessage());
 
             $this->messageManager->addErrorMessage($error);
@@ -209,7 +209,7 @@ class PickupStore extends \Ess\M2ePro\Helper\AbstractHelper
 
     protected function getWorkingHoursData(array $data)
     {
-        $weekHours = json_decode($data['business_hours'], true);
+        $weekHours = $this->getHelper('Data')->jsonDecode($data['business_hours']);
         $weekValues = array(
             'monday'    => 1,
             'tuesday'   => 2,
@@ -229,7 +229,7 @@ class PickupStore extends \Ess\M2ePro\Helper\AbstractHelper
             $parsedWeekHours[$weekValues[$weekDay]] = $weekHours['week_settings'][$weekDay];
         }
 
-        $holidaysHours = json_decode($data['special_hours'], true);
+        $holidaysHours = $this->getHelper('Data')->jsonDecode($data['special_hours']);
         return array(
             'week' => $parsedWeekHours,
             'holidays' => $holidaysHours['date_settings']

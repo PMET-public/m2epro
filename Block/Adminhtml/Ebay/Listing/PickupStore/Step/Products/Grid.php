@@ -376,7 +376,7 @@ HTML;
             return $valueHtml;
         }
 
-        $additionalData = (array)json_decode($row->getData('additional_data'), true);
+        $additionalData = (array)$this->getHelper('Data')->jsonDecode($row->getData('additional_data'));
         $productAttributes = array_keys($additionalData['variations_sets']);
         $valueHtml .= '<div style="font-size: 11px; font-weight: bold; color: grey; margin: 7px 0 0 7px">';
         $valueHtml .= implode(', ', $productAttributes);
@@ -488,42 +488,6 @@ HTML;
                 (($onlineMinPrice != $onlineMaxPrice) ? ' - ' . $onlineMaxPriceStr :  '');
         }
 
-        $listingProductId = (int)$row->getData('listing_product_id');
-        /** @var \Ess\M2ePro\Model\Listing\Product $listingProduct */
-        $listingProduct = $this->ebayFactory->getObjectLoaded('Listing\Product',$listingProductId);
-        $onlineBids = $listingProduct->getChildObject()->getOnlineBids();
-
-        if ($onlineBids) {
-            $title = $row->getName();
-
-            $onlineTitle = $row->getData('online_title');
-            !empty($onlineTitle) && $title = $onlineTitle;
-
-            $title = $this->getHelper('Data')->escapeHtml($title);
-
-            $bidsPopupTitle = $this->__('Bids of &quot;%s&quot;', $title);
-            $bidsPopupTitle = addslashes($bidsPopupTitle);
-
-            $bidsTitle = $this->__('Show bids list');
-            $bidsText = $this->__('Bid(s)');
-
-            if ($listingProduct->getStatus() == \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED) {
-                $resultHtml .= '<br/><br/><span style="font-size: 10px; color: gray;">' .
-                    $onlineBids. ' ' . $bidsText . '</span>';
-            } else {
-                $resultHtml .= <<<HTML
-<br/>
-<br/>
-<a class="m2ePro-ebay-auction-bids-link"
-    href="javascript:void(0)"
-    title="{$bidsTitle}"
-    onclick="EbayListingViewEbayGridObj
-        .listingProductBidsHandler.openPopUp({$listingProductId},'{$bidsPopupTitle}')"
->{$onlineBids} {$bidsText}</a>
-HTML;
-            }
-        }
-
         return $resultHtml;
     }
 
@@ -605,7 +569,7 @@ HTML;
             if (isset($value['from']) && $value['from'] != '') {
                 $condition .= ' AND ';
             }
-            $condition .= 'min_online_price <= \''.$value['to'].'\'';
+            $condition .= 'min_online_price <= \''.(float)$value['to'].'\'';
         }
 
         $condition = '(' . $condition . ') OR (';
@@ -617,7 +581,7 @@ HTML;
             if (isset($value['from']) && $value['from'] != '') {
                 $condition .= ' AND ';
             }
-            $condition .= 'max_online_price <= \''.$value['to'].'\'';
+            $condition .= 'max_online_price <= \''.(float)$value['to'].'\'';
         }
 
         $condition .= ')';

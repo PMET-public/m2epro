@@ -123,13 +123,13 @@ class Data extends AbstractHelper
                     $allowed = implode('|', $allowedTags);
 
                     $pattern = '/<([\/\s\r\n]*)(' . $allowed . ')'.
-                        '((\s+\w+="[\w\s\%\?=&#\/\.;:_\-\(\)]*")*[\/\s\r\n]*)>/si';
+                        '((\s+\w+="[\w\s\%\?=&#\/\.,;:_\-\(\)]*")*[\/\s\r\n]*)>/si';
                     $result = preg_replace($pattern, '##$1$2$3##', $data);
 
                     $result = htmlspecialchars($result, $flags);
 
                     $pattern = '/##([\/\s\r\n]*)(' . $allowed . ')'.
-                        '((\s+\w+="[\w\s\%\?=&#\/\.;:_\-\(\)]*")*[\/\s\r\n]*)##/si';
+                        '((\s+\w+="[\w\s\%\?=&#\/\.,;:_\-\(\)]*")*[\/\s\r\n]*)##/si';
                     $result = preg_replace($pattern, '<$1$2$3>', $result);
                 } else {
                     $result = htmlspecialchars($data, $flags);
@@ -187,37 +187,6 @@ class Data extends AbstractHelper
         return $text;
     }
 
-    public function arrayReplaceRecursive($base, $replacements)
-    {
-        $args = func_get_args();
-        foreach (array_slice($args, 1) as $replacements) {
-
-            $bref_stack = array(&$base);
-            $head_stack = array($replacements);
-
-            do {
-                end($bref_stack);
-
-                $bref = &$bref_stack[key($bref_stack)];
-                $head = array_pop($head_stack);
-
-                unset($bref_stack[key($bref_stack)]);
-
-                foreach (array_keys($head) as $key) {
-
-                    if (isset($key, $bref, $bref[$key]) && is_array($bref[$key]) && is_array($head[$key])) {
-                        $bref_stack[] = &$bref[$key];
-                        $head_stack[] = $head[$key];
-                    } else {
-                        $bref[$key] = $head[$key];
-                    }
-                }
-            } while (count($head_stack));
-        }
-
-        return $base;
-    }
-
     public function normalizeToUtfEncoding($data)
     {
         if (is_array($data)) {
@@ -233,14 +202,19 @@ class Data extends AbstractHelper
 
     public function reduceWordsInString($string, $neededLength, $longWord = 6, $minWordLen = 2, $atEndOfWord = '.')
     {
-        if (strlen($string) <= $neededLength) {
+        $oldEncoding = mb_internal_encoding();
+        mb_internal_encoding('UTF-8');
+
+        if (mb_strlen($string) <= $neededLength) {
+
+            mb_internal_encoding($oldEncoding);
             return $string;
         }
 
         $longWords = array();
         foreach (explode(' ', $string) as $word) {
-            if (strlen($word) >= $longWord && !preg_match('/[0-9]/', $word)) {
-                $longWords[$word] = strlen($word) - $minWordLen;
+            if (mb_strlen($word) >= $longWord && !preg_match('/[0-9]/', $word)) {
+                $longWords[$word] = mb_strlen($word) - $minWordLen;
             }
         }
 
@@ -249,9 +223,11 @@ class Data extends AbstractHelper
             $canBeReduced += $canBeReducedForWord;
         }
 
-        $needToBeReduced = strlen($string) - $neededLength + (count($longWords) * strlen($atEndOfWord));
+        $needToBeReduced = mb_strlen($string) - $neededLength + (count($longWords) * mb_strlen($atEndOfWord));
 
         if ($canBeReduced < $needToBeReduced) {
+
+            mb_internal_encoding($oldEncoding);
             return $string;
         }
 
@@ -259,7 +235,7 @@ class Data extends AbstractHelper
         foreach ($longWords as $word => $canBeReducedForWord) {
 
             $willReduced = ceil($weightOfOneLetter * $canBeReducedForWord);
-            $reducedWord = substr($word, 0, strlen($word) - $willReduced) . $atEndOfWord;
+            $reducedWord = mb_substr($word, 0, mb_strlen($word) - $willReduced) . $atEndOfWord;
 
             $string = str_replace($word, $reducedWord, $string);
 
@@ -268,7 +244,100 @@ class Data extends AbstractHelper
             }
         }
 
+        mb_internal_encoding($oldEncoding);
         return $string;
+    }
+
+    //########################################
+
+    /**
+     * It prevents situations when json_encode() returns FALSE due to some broken bytes sequence.
+     * Normally normalizeToUtfEncoding() fixes that
+     *
+     * @param $data
+     * @param bool $throwError
+     * @return null|string
+     * @throws \Ess\M2ePro\Model\Exception\Logic
+     */
+    public function jsonEncode($data, $throwError = true)
+    {
+        if ($data === false) {
+            return 'false';
+        }
+
+        $encoded = @json_encode($data);
+        if ($encoded !== false) {
+            return $encoded;
+        }
+
+        $this->helperFactory->getObject('Module\Logger')->process(
+            ['source' => serialize($data)], 'json_encode() failed', false
+        );
+
+        $encoded = @json_encode($this->normalizeToUtfEncoding($data));
+        if ($encoded !== false) {
+            return $encoded;
+        }
+
+        $previousValue = \Zend_Json::$useBuiltinEncoderDecoder;
+        \Zend_Json::$useBuiltinEncoderDecoder = true;
+        $encoded = \Zend_Json::encode($data);
+        \Zend_Json::$useBuiltinEncoderDecoder = $previousValue;
+
+        if ($encoded !== false) {
+            return $encoded;
+        }
+
+        if (!$throwError) {
+            return NULL;
+        }
+
+        throw new \Ess\M2ePro\Model\Exception\Logic('Unable to encode to JSON.', ['source' => serialize($data)]);
+    }
+
+    /**
+     * It prevents situations when json_decode() returns NULL due to unknown issue.
+     * Despite the fact that given JSON is having correct format
+     *
+     * @param $data
+     * @param bool $throwError
+     * @return null|array
+     * @throws \Ess\M2ePro\Model\Exception\Logic
+     */
+    public function jsonDecode($data, $throwError = false)
+    {
+        if (is_null($data) || $data === '' || strtolower($data) === 'null') {
+            return NULL;
+        }
+
+        $decoded = @json_decode($data, true);
+        if (!is_null($decoded)) {
+            return $decoded;
+        }
+
+        $this->helperFactory->getObject('Module\Logger')->process(
+            ['source' => serialize($data)], 'json_decode() failed', false
+        );
+
+        try {
+
+            $previousValue = \Zend_Json::$useBuiltinEncoderDecoder;
+            \Zend_Json::$useBuiltinEncoderDecoder = true;
+            $decoded = \Zend_Json::decode($data);
+            \Zend_Json::$useBuiltinEncoderDecoder = $previousValue;
+
+        } catch (\Exception $e) {
+            $decoded = NULL;
+        }
+
+        if (is_null($decoded) && $throwError) {
+
+            throw new \Ess\M2ePro\Model\Exception\Logic(
+                'Unable to decode JSON.', ['source' => $data]
+            );
+        }
+
+        return $decoded;
     }
 
     //########################################
@@ -464,6 +533,8 @@ class Data extends AbstractHelper
         }
 
         $a = 0;
+        $string = (string)$string;
+
         for ($i = 0; $i < 10; $i++) {
             if ($string[$i] == "X" || $string[$i] == "x") {
                 $a += 10 * intval(10 - $i);

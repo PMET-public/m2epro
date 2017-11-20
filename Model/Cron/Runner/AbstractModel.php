@@ -55,16 +55,27 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\AbstractModel
 
     public function process()
     {
+        $transactionalManager = $this->modelFactory->getObject('Lock\Transactional\Manager');
+        $transactionalManager->setNick('cron_runner');
+
+        $transactionalManager->lock();
+
         $this->initialize();
         $this->updateLastAccess();
 
         if (!$this->isPossibleToRun()) {
             $this->deInitialize();
+            $transactionalManager->unlock();
+
             return true;
         }
 
+        $this->publicVersionsChecker->doCheck();
+
         $this->updateLastRun();
         $this->beforeStart();
+
+        $transactionalManager->unlock();
 
         try {
 
@@ -105,8 +116,6 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\AbstractModel
 
     protected function initialize()
     {
-        $this->publicVersionsChecker->doCheck();
-
         $this->previousStoreId = $this->storeManager->getStore()->getId();
 
         $this->storeManager->setCurrentStore(\Magento\Store\Model\Store::DEFAULT_STORE_ID);
@@ -137,6 +146,10 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\AbstractModel
             return false;
         }
 
+        if ($this->getHelper('Module')->isDisabled()) {
+            return false;
+        }
+
         if (!$this->getHelper('Module')->isReadyToWork()) {
             return false;
         }
@@ -162,7 +175,7 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\AbstractModel
 
     protected function beforeStart()
     {
-        $this->getOperationHistory()->start('cron_runner', null, $this->getInitiator());
+        $this->getOperationHistory()->start('cron_runner',null,$this->getInitiator(),$this->getOperationHistoryData());
         $this->getOperationHistory()->makeShutdownFunction();
     }
 
@@ -171,12 +184,19 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\AbstractModel
         $this->getOperationHistory()->stop();
     }
 
+    // ---------------------------------------
+
+    protected function getOperationHistoryData()
+    {
+        return ['runner' => $this->getNick()];
+    }
+
     //########################################
 
     /**
      * @return \Ess\M2ePro\Model\OperationHistory
      */
-    protected function getOperationHistory()
+    public function getOperationHistory()
     {
         if (!is_null($this->operationHistory)) {
             return $this->operationHistory;

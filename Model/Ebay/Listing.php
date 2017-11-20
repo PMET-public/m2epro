@@ -6,14 +6,17 @@
  * @license    Commercial use is forbidden
  */
 
+namespace Ess\M2ePro\Model\Ebay;
+
 /**
  * @method \Ess\M2ePro\Model\Listing getParentObject()
  */
-namespace Ess\M2ePro\Model\Ebay;
-
 class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\AbstractModel
 {
     const ADDING_MODE_ADD_AND_ASSIGN_CATEGORY = 2;
+
+    const PARTS_COMPATIBILITY_MODE_EPIDS  = 'epids';
+    const PARTS_COMPATIBILITY_MODE_KTYPES = 'ktypes';
 
     /**
      * @var \Ess\M2ePro\Model\Ebay\Template\Category
@@ -496,23 +499,42 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
 
     //########################################
 
-    public function convertPriceFromStoreToMarketplace($price)
+    public function gePartsCompatibilityMode()
     {
-        return $this->modelFactory->getObject('Currency')->convertPrice(
-            $price,
-            $this->getEbayMarketplace()->getCurrency(),
-            $this->getParentObject()->getStoreId()
-        );
+        return $this->getData('parts_compatibility_mode');
     }
+
+    public function isPartsCompatibilityModeKtypes()
+    {
+        if ($this->getEbayMarketplace()->isMultiMotorsEnabled()) {
+            return $this->gePartsCompatibilityMode() == self::PARTS_COMPATIBILITY_MODE_KTYPES ||
+                is_null($this->gePartsCompatibilityMode());
+        }
+
+        return $this->getEbayMarketplace()->isKtypeEnabled();
+    }
+
+    public function isPartsCompatibilityModeEpids()
+    {
+        if ($this->getEbayMarketplace()->isMultiMotorsEnabled()) {
+            return $this->gePartsCompatibilityMode() == self::PARTS_COMPATIBILITY_MODE_EPIDS;
+        }
+
+        return $this->getEbayMarketplace()->isEpidEnabled();
+    }
+
+    //########################################
 
     /**
      * @param \Ess\M2ePro\Model\Listing\Other $listingOtherProduct
+     * @param int $initiator
      * @param bool $checkingMode
      * @param bool $checkHasProduct
      * @return bool|\Ess\M2ePro\Model\Listing\Product
      * @throws \Ess\M2ePro\Model\Exception\Logic
      */
     public function addProductFromOther(\Ess\M2ePro\Model\Listing\Other $listingOtherProduct,
+                                        $initiator = \Ess\M2ePro\Helper\Data::INITIATOR_UNKNOWN,
                                         $checkingMode = false,
                                         $checkHasProduct = true)
     {
@@ -521,7 +543,7 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
         }
 
         $productId = $listingOtherProduct->getProductId();
-        $result = $this->getParentObject()->addProduct($productId, $checkingMode, true);
+        $result = $this->getParentObject()->addProduct($productId, $initiator, $checkingMode, true);
 
         if ($checkingMode) {
             return $result;
@@ -578,7 +600,7 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
             $additionalDataForUpdate = array_merge(
                 $listingProductAdditionalData, array('out_of_stock_control' => true)
             );
-            $dataForUpdate['additional_data'] = json_encode($additionalDataForUpdate);
+            $dataForUpdate['additional_data'] = $this->getHelper('Data')->jsonEncode($additionalDataForUpdate);
         }
 
         $listingProduct->addData($dataForUpdate)
@@ -596,7 +618,7 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
     public function getAddedListingProductsIds()
     {
         $ids = $this->getData('product_add_ids');
-        $ids = array_filter((array)json_decode($ids, true));
+        $ids = array_filter((array)$this->getHelper('Data')->jsonDecode($ids));
         return array_values(array_unique($ids));
     }
 

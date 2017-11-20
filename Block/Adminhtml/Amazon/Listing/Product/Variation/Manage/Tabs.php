@@ -82,23 +82,20 @@ HTML;
             'content' => $settingsBlock->toHtml()
         ));
 
-//        $this->addTab('vocabulary', array(
-//            'label'   => $this->__('Advanced'),
-//            'title'   => $this->__('Advanced'),
-//            'content' => $this->getLayout()
-//                ->createBlock('M2ePro/adminhtml_common_amazon_listing_variation_product_manage_tabs_vocabulary')
-//                ->setListingProductId($this->getListingProductId())
-//                ->toHtml()
-//        ));
-//
+        $this->addTab('vocabulary', array(
+            'label'   => $this->__('Advanced'),
+            'title'   => $this->__('Advanced'),
+            'content' => $this->createBlock('Amazon\Listing\Product\Variation\Manage\Tabs\Vocabulary')
+                ->setListingProduct($this->getListingProduct())
+                ->toHtml()
+        ));
+
         $generalId = $this->getListingProduct()->getChildObject()->getGeneralId();
         if (empty($generalId) && $this->getListingProduct()->getChildObject()->isGeneralIdOwner()) {
             $this->setActiveTab('settings');
         } else {
             $this->setActiveTab('variations');
         }
-
-        $this->setActiveTab('variations');
 
         return parent::_beforeToHtml();
     }
@@ -107,18 +104,15 @@ HTML;
     {
         $generalId = $this->getListingProduct()->getChildObject()->getGeneralId();
 
-        $showMask = 0;
-        if (!(empty($generalId) && $this->getListingProduct()->getChildObject()->isGeneralIdOwner())) {
-            $showMask = 1;
-        }
+        $showChildProducts = (int)(
+            !(empty($generalId) && $this->getListingProduct()->getChildObject()->isGeneralIdOwner())
+        );
 
         $this->js->add(
 <<<JS
-//    amazonVariationProductManageTabsJsTabs.moveTabContentInDest();
-//
-//    if (!{$showMask}) {
-//        amazonVariationProductManageTabsJsTabs.tabs[0].hide();
-//    }
+    if (!{$showChildProducts}) {
+        jQuery(jQuery('#amazonVariationProductManageTabs').find("li")[0]).hide();
+    }
 JS
         );
 

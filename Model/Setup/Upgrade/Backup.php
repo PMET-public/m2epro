@@ -10,11 +10,13 @@ namespace Ess\M2ePro\Model\Setup\Upgrade;
 
 use Ess\M2ePro\Model\AbstractModel;
 use Ess\M2ePro\Model\Exception;
+use Ess\M2ePro\Model\Setup\Database\Modifier\Table as TableModifier;
 use Magento\Framework\Module\Setup;
 
 class Backup extends AbstractModel
 {
-    const TABLE_SUFFIX = '__backup';
+    const TABLE_SUFFIX = '__b';
+    const TABLE_IDENTIFIER_MAX_LEN = 20;
 
     private $versionFrom;
 
@@ -67,6 +69,9 @@ class Backup extends AbstractModel
     public function create()
     {
         foreach ($this->tablesList as $table) {
+
+            $this->prepareColumns($table);
+
             $backupTable = $this->getConnection()->createTableByDdl(
                 $this->helperFactory->getObject('Module\Database\Tables')->getFullName($table),
                 $this->getResultTableName($table)
@@ -123,10 +128,88 @@ class Backup extends AbstractModel
 
     private function getResultTableName($table)
     {
-        return $this->helperFactory->getObject('Module\Database\Tables')->getFullName($table)
+        $tableName = $this->helperFactory->getObject('Module\Database\Tables')->getFullName($table)
                .self::TABLE_SUFFIX
-               .'_v'.str_replace('.', '_', $this->versionFrom)
-               .'_v'.str_replace('.', '_', $this->versionTo);
+               .'_'.str_replace('.', '', $this->versionFrom)
+               .'_'.str_replace('.', '', $this->versionTo);
+
+        if (strlen($tableName) > self::TABLE_IDENTIFIER_MAX_LEN) {
+            $tableName = 'm2epro' . self::TABLE_SUFFIX .'_'. sha1($tableName);
+        }
+
+        return $tableName;
+    }
+
+    //########################################
+
+    private function prepareColumns($table)
+    {
+        $tableInfo = $this->getConnection()->describeTable(
+            $this->helperFactory->getObject('Module\Database\Tables')->getFullName($table)
+        );
+
+        /** @var \Ess\M2ePro\Model\Setup\Database\Modifier\Table $tableModifier */
+        $tableModifier = $this->modelFactory->getObject('Setup\Database\Modifier\Table',
+            [
+                'installer' => $this->installer,
+                'tableName' => $table,
+            ]
+        );
+
+        foreach ($tableInfo as $columnTitle => $columnInfo) {
+
+            $this->prepareFloatUnsignedColumns($tableModifier, $columnTitle, $columnInfo);
+            $this->prepareVarcharColumns($tableModifier, $columnTitle, $columnInfo);
+        }
+
+        $tableModifier->commit();
+    }
+
+    /**
+     * @param $tableModifier TableModifier
+     * @param $columnTitle string
+     * @param $columnInfo array
+     *
+     * convert FLOAT UNSIGNED columns to FLOAT because of zend framework bug in ->createTableByDdl method,
+     * that does not support 'FLOAT UNSIGNED' column type
+     */
+    private function prepareFloatUnsignedColumns(TableModifier $tableModifier, $columnTitle, array $columnInfo)
+    {
+        if (strtolower($columnInfo['DATA_TYPE']) != 'float unsigned') {
+            return;
+        }
+
+        $columnType = 'FLOAT';
+        if (isset($columnInfo['NULLABLE']) && !$columnInfo['NULLABLE']) {
+            $columnType .= ' NOT NULL';
+        }
+
+        $tableModifier->changeColumn($columnTitle, $columnType, $columnInfo['DEFAULT'], NULL, false);
+    }
+
+    /**
+     * @param $tableModifier TableModifier
+     * @param $columnTitle string
+     * @param $columnInfo array
+     *
+     * convert VARCHAR(256-500) to VARCHAR(255) because ->createTableByDdl method will handle this column
+     * as TEXT. Due to the incorrect length > 255
+     */
+    private function prepareVarcharColumns(TableModifier $tableModifier, $columnTitle, array $columnInfo)
+    {
+        if (strtolower($columnInfo['DATA_TYPE']) != 'varchar') {
+            return;
+        }
+
+        if ($columnInfo['LENGTH'] > 255 && $columnInfo['LENGTH'] <= 500) {
+
+            $columnType = 'varchar(255)';
+            if (isset($columnInfo['NULLABLE']) && !$columnInfo['NULLABLE']) {
+                $columnType .= ' NOT NULL';
+            }
+
+            $tableModifier->changeColumn($columnTitle, $columnType, $columnInfo['DEFAULT'], NULL, false);
+        }
     }
 
     //########################################

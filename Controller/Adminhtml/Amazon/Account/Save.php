@@ -110,7 +110,7 @@ class Save extends Account
             $mappingSettings['title']['attribute'] = (string)$tempData['mapping_title_attribute'];
         }
 
-        $data['other_listings_mapping_settings'] = json_encode($mappingSettings);
+        $data['other_listings_mapping_settings'] = $this->getHelper('Data')->jsonEncode($mappingSettings);
         // ---------------------------------------
 
         // tab: orders
@@ -313,10 +313,39 @@ class Save extends Account
         // ---------------------------------------
 
         // ---------------------------------------
-        $data['magento_orders_settings'] = json_encode($data['magento_orders_settings']);
+        $data['magento_orders_settings'] = $this->getHelper('Data')->jsonEncode($data['magento_orders_settings']);
         // ---------------------------------------
 
         $isEdit = !is_null($id);
+
+        // tab: shipping settings
+        // ---------------------------------------
+        $keys = array(
+            'shipping_mode'
+        );
+        foreach ($keys as $key) {
+            if (isset($post[$key])) {
+                $data[$key] = $post[$key];
+            }
+        }
+        // ---------------------------------------
+
+        // tab: vat calculation service
+        // ---------------------------------------
+        $keys = array(
+            'is_vat_calculation_service_enabled',
+            'is_magento_invoice_creation_disabled',
+        );
+        foreach ($keys as $key) {
+            if (isset($post[$key])) {
+                $data[$key] = $post[$key];
+            }
+        }
+
+        if (empty($data['is_vat_calculation_service_enabled'])) {
+            $data['is_magento_invoice_creation_disabled'] = false;
+        }
+        // ---------------------------------------
 
         // Add or update model
         // ---------------------------------------
@@ -343,7 +372,7 @@ class Save extends Account
 
         // Repricing
         // ---------------------------------------
-        if (!empty($post['repricing'])) {
+        if (!empty($post['repricing']) && $model->getChildObject()->isRepricing()) {
 
             /** @var \Ess\M2ePro\Model\Amazon\Account\Repricing $repricingModel */
             $repricingModel = $model->getChildObject()->getRepricing();

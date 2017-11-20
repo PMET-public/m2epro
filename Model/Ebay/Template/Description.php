@@ -6,12 +6,12 @@
  * @license    Commercial use is forbidden
  */
 
+namespace Ess\M2ePro\Model\Ebay\Template;
+
 /**
  * @method \Ess\M2ePro\Model\Template\Description getParentObject()
  * @method \Ess\M2ePro\Model\ResourceModel\Ebay\Template\Description getResource()
  */
-namespace Ess\M2ePro\Model\Ebay\Template;
-
 class Description extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\AbstractModel
 {
     const TITLE_MODE_PRODUCT = 0;
@@ -896,7 +896,7 @@ class Description extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Ab
      */
     public function getDecodedVariationConfigurableImages()
     {
-        return json_decode($this->getData('variation_configurable_images'), true);
+        return $this->getHelper('Data')->jsonDecode($this->getData('variation_configurable_images'));
     }
 
     /**
@@ -1117,7 +1117,7 @@ class Description extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Ab
             'condition_note_mode' => self::CONDITION_NOTE_MODE_NONE,
             'condition_note_template' => '',
 
-            'product_details' => json_encode(array(
+            'product_details' => $this->getHelper('Data')->jsonEncode(array(
                 'isbn'  => array('mode' => self::PRODUCT_DETAILS_MODE_NONE, 'attribute' => ''),
                 'epid'  => array('mode' => self::PRODUCT_DETAILS_MODE_NONE, 'attribute' => ''),
                 'upc'   => array('mode' => self::PRODUCT_DETAILS_MODE_NONE, 'attribute' => ''),
@@ -1145,12 +1145,12 @@ class Description extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Ab
             'variation_images_attribute' => '',
             'default_image_url' => '',
 
-            'variation_configurable_images' => json_encode(array()),
+            'variation_configurable_images' => $this->getHelper('Data')->jsonEncode(array()),
             'use_supersize_images' => self::USE_SUPERSIZE_IMAGES_NO,
 
             'watermark_mode' => self::WATERMARK_MODE_NO,
 
-            'watermark_settings' => json_encode(array(
+            'watermark_settings' => $this->getHelper('Data')->jsonEncode(array(
                 'position' => self::WATERMARK_POSITION_TOP,
                 'scale' => self::WATERMARK_SCALE_MODE_NONE,
                 'transparent' => self::WATERMARK_TRANSPARENT_MODE_NO,

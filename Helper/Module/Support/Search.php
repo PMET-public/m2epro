@@ -41,7 +41,7 @@ class Search extends \Ess\M2ePro\Helper\AbstractHelper
         $response = $this->sendRequestAsGet($params);
 
         if ($response !== false) {
-            $results = (array)json_decode($response, true);
+            $results = (array)$this->getHelper('Data')->jsonDecode($response);
         }
 
         return $results;
@@ -56,6 +56,8 @@ class Search extends \Ess\M2ePro\Helper\AbstractHelper
         $url = $this->getHelper('Module\Support')->getSupportUrl() . '/extension/search/';
         $url = $url . '?'.http_build_query($params,'','&');
         curl_setopt($curlObject, CURLOPT_URL, $url);
+
+        curl_setopt($curlObject, CURLOPT_FOLLOWLOCATION, true);
 
         // stop CURL from verifying the peer's certificate
         curl_setopt($curlObject, CURLOPT_SSL_VERIFYPEER, false);

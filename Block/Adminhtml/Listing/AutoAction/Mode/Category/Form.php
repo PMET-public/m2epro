@@ -58,7 +58,7 @@ class Form extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
                 'label' => $this->__('Title'),
                 'title' => $this->__('Title'),
                 'class' => 'M2ePro-required-when-visible M2ePro-validate-category-group-title',
-                'value' => $this->getHelper('Data')->escapeHtml($this->formData['title']),
+                'value' => $this->formData['title'],
                 'required' => true
             ]
         );
@@ -205,7 +205,9 @@ class Form extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
     {
         $this->jsPhp->addConstants($this->getHelper('Data')->getClassConstants('\Ess\M2ePro\Model\Listing'));
 
-        $magentoCategoryIdsFromOtherGroups = json_encode($this->getCategoriesFromOtherGroups());
+        $magentoCategoryIdsFromOtherGroups = $this->getHelper('Data')->jsonEncode(
+            $this->getCategoriesFromOtherGroups()
+        );
         $this->js->add(<<<JS
             ListingAutoActionObj.magentoCategoryIdsFromOtherGroups = {$magentoCategoryIdsFromOtherGroups};
 

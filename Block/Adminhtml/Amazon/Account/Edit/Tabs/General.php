@@ -28,7 +28,7 @@ class General extends AbstractForm
         $formData = !is_null($account) ? array_merge($account->getData(), $account->getChildObject()->getData()) : [];
 
         if (isset($formData['other_listings_mapping_settings'])) {
-            $formData['other_listings_mapping_settings'] = (array)json_decode(
+            $formData['other_listings_mapping_settings'] = (array)$this->getHelper('Data')->jsonDecode(
                 $formData['other_listings_mapping_settings'],true
             );
         }
@@ -115,7 +115,13 @@ HTML
 
         $preparedValues = [];
         if (!$isEdit) {
-            $preparedValues[]  = '';
+            $preparedValues[] = [
+                'label' => '',
+                'value' => '',
+                'attrs' => [
+                    'style' => 'display: none;'
+                ]
+            ];
         }
         foreach ($marketplaces as $marketplace) {
             $preparedValues[$marketplace['id']] = $marketplace['title'];
@@ -123,7 +129,7 @@ HTML
 
         $fieldset->addField(
             'marketplace_id',
-            'select',
+            self::SELECT,
             [
                 'name' => 'marketplace_id',
                 'label' => $this->__('Marketplace'),

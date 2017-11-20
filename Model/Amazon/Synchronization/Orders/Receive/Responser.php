@@ -61,7 +61,8 @@ class Responser extends \Ess\M2ePro\Model\Amazon\Connector\Orders\Get\ItemsRespo
             return false;
         }
 
-        if ($this->getResponse()->getMessages()->hasErrorEntities()) {
+        $responseData = $this->getResponse()->getData();
+        if ($this->getResponse()->getMessages()->hasErrorEntities() && !isset($responseData['items'])) {
             return false;
         }
 
@@ -85,48 +86,74 @@ class Responser extends \Ess\M2ePro\Model\Amazon\Connector\Orders\Get\ItemsRespo
 
     protected function processResponseData()
     {
-        try {
+        $accounts = $this->getAccountsByAccessTokens();
+        $preparedResponseData = $this->getPreparedResponseData();
 
-            $amazonOrders = $this->processAmazonOrders();
+        $processedAmazonOrders = array();
+
+        foreach ($preparedResponseData['orders'] as $accountAccessToken => $ordersData) {
+
+            $amazonOrders = $this->processAmazonOrders($ordersData, $accounts[$accountAccessToken]);
+
             if (empty($amazonOrders)) {
-                return;
+                continue;
             }
 
-            $this->createMagentoOrders($amazonOrders);
+            $processedAmazonOrders[] = $amazonOrders;
+        }
 
-        } catch (\Exception $exception) {
+        $merchantId = current($accounts)->getChildObject()->getMerchantId();
 
-            $this->getSynchronizationLog()->addMessage(
-                $this->getHelper('Module\Translation')->__($exception->getMessage()),
-                \Ess\M2ePro\Model\Log\AbstractModel::TYPE_ERROR,
-                \Ess\M2ePro\Model\Log\AbstractModel::PRIORITY_HIGH
+        if (!empty($preparedResponseData['job_token'])) {
+            $this->modelFactory->getObject('Config\Manager\Synchronization')->setGroupValue(
+                "/amazon/orders/receive/{$merchantId}/", "job_token", $preparedResponseData['job_token']
             );
+        } else {
+            $this->modelFactory->getObject('Config\Manager\Synchronization')->deleteGroupValue(
+                "/amazon/orders/receive/{$merchantId}/", "job_token"
+            );
+        }
 
-            $this->getHelper('Module\Exception')->process($exception);
+        $this->modelFactory->getObject('Config\Manager\Synchronization')->setGroupValue(
+            "/amazon/orders/receive/{$merchantId}/", "from_update_date", $preparedResponseData['to_update_date']
+        );
+
+        foreach ($processedAmazonOrders as $amazonOrders) {
+            try {
+
+                $this->createMagentoOrders($amazonOrders);
+
+            } catch (\Exception $exception) {
+
+                $this->getSynchronizationLog()->addMessage(
+                    $this->getHelper('Module\Translation')->__($exception->getMessage()),
+                    \Ess\M2ePro\Model\Log\AbstractModel::TYPE_ERROR,
+                    \Ess\M2ePro\Model\Log\AbstractModel::PRIORITY_HIGH
+                );
+
+                $this->getHelper('Module\Exception')->process($exception);
+            }
         }
     }
 
     // ---------------------------------------
 
-    private function processAmazonOrders()
+    private function processAmazonOrders(array $ordersData, \Ess\M2ePro\Model\Account $account)
     {
-        /** @var \Ess\M2ePro\Model\Amazon\Account $amazonAccount */
-        $amazonAccount = $this->getAccount()->getChildObject();
-
-        $ordersLastSynchronization = $amazonAccount->getData('orders_last_synchronization');
+        $accountCreateDate = new \DateTime($account->getData('create_date'), new \DateTimeZone('UTC'));
 
         $orders = array();
 
-        foreach ($this->getPreparedResponseData() as $orderData) {
-            $currentOrderUpdateDate = $orderData['purchase_update_date'];
+        foreach ($ordersData as $orderData) {
 
-            if (strtotime($currentOrderUpdateDate) > strtotime($ordersLastSynchronization)) {
-                $ordersLastSynchronization = $currentOrderUpdateDate;
+            $orderCreateDate = new \DateTime($orderData['purchase_create_date'], new \DateTimeZone('UTC'));
+            if ($orderCreateDate < $accountCreateDate) {
+                continue;
             }
 
             /** @var $orderBuilder \Ess\M2ePro\Model\Amazon\Order\Builder */
             $orderBuilder = $this->orderBuilderFactory->create();
-            $orderBuilder->initialize($this->getAccount(), $orderData);
+            $orderBuilder->initialize($account, $orderData);
 
             try {
                 $order = $orderBuilder->process();
@@ -141,8 +168,6 @@ class Responser extends \Ess\M2ePro\Model\Amazon\Connector\Orders\Get\ItemsRespo
             $orders[] = $order;
         }
 
-        $amazonAccount->setData('orders_last_synchronization', $ordersLastSynchronization)->save();
-
         return $orders;
     }
 
@@ -150,6 +175,11 @@ class Responser extends \Ess\M2ePro\Model\Amazon\Connector\Orders\Get\ItemsRespo
     {
         foreach ($amazonOrders as $order) {
             /** @var $order \Ess\M2ePro\Model\Order */
+
+            if ($this->isOrderChangedInParallelProcess($order)) {
+                continue;
+            }
+
             $order->getLog()->setInitiator(\Ess\M2ePro\Helper\Data::INITIATOR_EXTENSION);
 
             if ($order->canCreateMagentoOrder()) {
@@ -176,22 +206,22 @@ class Responser extends \Ess\M2ePro\Model\Amazon\Connector\Orders\Get\ItemsRespo
         }
     }
 
-    //########################################
-
     /**
-     * @return \Ess\M2ePro\Model\Account
+     * This is going to protect from Magento Orders duplicates.
+     * (Is assuming that there may be a parallel process that has already created Magento Order)
+     *
+     * But this protection is not covering a cases when two parallel cron processes are isolated by mysql transactions
      */
-    protected function getAccount()
+    private function isOrderChangedInParallelProcess(\Ess\M2ePro\Model\Order $order)
     {
-        return $this->getObjectByParam('Account','account_id');
-    }
+        /** @var \Ess\M2ePro\Model\Order $dbOrder */
+        $dbOrder = $this->activeRecordFactory->getObject('Order')->load($order->getId());
 
-    /**
-     * @return \Ess\M2ePro\Model\Marketplace
-     */
-    protected function getMarketplace()
-    {
-        return $this->getAccount()->getChildObject()->getMarketplace();
+        if ($dbOrder->getMagentoOrderId() != $order->getMagentoOrderId()) {
+            return true;
+        }
+
+        return false;
     }
 
     //########################################

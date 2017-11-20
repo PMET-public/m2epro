@@ -8,6 +8,13 @@
 
 namespace Ess\M2ePro\Model\Listing;
 
+/**
+ * @method \Ess\M2ePro\Model\ResourceModel\Listing\Log getResource()
+ */
+
+/**
+ * @method \Ess\M2ePro\Model\ResourceModel\Listing\Log\Collection getCollection()
+ */
 class Log extends \Ess\M2ePro\Model\Log\AbstractModel
 {
     const ACTION_UNKNOWN = 1;
@@ -21,7 +28,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
     const ACTION_ADD_PRODUCT_TO_LISTING = 4;
     const _ACTION_ADD_PRODUCT_TO_LISTING = 'Add Product to Listing';
     const ACTION_DELETE_PRODUCT_FROM_LISTING = 5;
-    const _ACTION_DELETE_PRODUCT_FROM_LISTING = 'Delete Item from Listing';
+    const _ACTION_DELETE_PRODUCT_FROM_LISTING = 'Delete Product from Listing';
 
     const ACTION_ADD_PRODUCT_TO_MAGENTO = 6;
     const _ACTION_ADD_PRODUCT_TO_MAGENTO = 'Add new Product to Magento Store';
@@ -40,21 +47,19 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
     const _ACTION_CHANGE_PRODUCT_STATUS = 'Change of Product status in Magento Store';
 
     const ACTION_LIST_PRODUCT_ON_COMPONENT = 13;
-    const _ACTION_LIST_PRODUCT_ON_COMPONENT = 'List Item on Channel';
+    const _ACTION_LIST_PRODUCT_ON_COMPONENT = 'List Product on Channel';
     const ACTION_RELIST_PRODUCT_ON_COMPONENT = 14;
-    const _ACTION_RELIST_PRODUCT_ON_COMPONENT = 'Relist Item on Channel';
+    const _ACTION_RELIST_PRODUCT_ON_COMPONENT = 'Relist Product on Channel';
     const ACTION_REVISE_PRODUCT_ON_COMPONENT = 15;
-    const _ACTION_REVISE_PRODUCT_ON_COMPONENT = 'Revise Item on Channel';
+    const _ACTION_REVISE_PRODUCT_ON_COMPONENT = 'Revise Product on Channel';
     const ACTION_STOP_PRODUCT_ON_COMPONENT = 16;
-    const _ACTION_STOP_PRODUCT_ON_COMPONENT = 'Stop Item on Channel';
+    const _ACTION_STOP_PRODUCT_ON_COMPONENT = 'Stop Product on Channel';
     const ACTION_DELETE_PRODUCT_FROM_COMPONENT = 24;
-    const _ACTION_DELETE_PRODUCT_FROM_COMPONENT = 'Remove Item from Channel';
+    const _ACTION_DELETE_PRODUCT_FROM_COMPONENT = 'Remove Product from Channel';
     const ACTION_STOP_AND_REMOVE_PRODUCT = 17;
     const _ACTION_STOP_AND_REMOVE_PRODUCT = 'Stop on Channel / Remove from Listing';
     const ACTION_DELETE_AND_REMOVE_PRODUCT = 23;
     const _ACTION_DELETE_AND_REMOVE_PRODUCT = 'Remove from Channel & Listing';
-    const ACTION_NEW_SKU_PRODUCT_ON_COMPONENT = 27;
-    const _ACTION_NEW_SKU_PRODUCT_ON_COMPONENT = 'New SKU Item on Channel';
     const ACTION_SWITCH_TO_AFN_ON_COMPONENT = 29;
     const _ACTION_SWITCH_TO_AFN_ON_COMPONENT = 'Switching Fulfillment to AFN';
     const ACTION_SWITCH_TO_MFN_ON_COMPONENT = 30;
@@ -69,6 +74,9 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
     const ACTION_CHANGE_CUSTOM_ATTRIBUTE = 18;
     const _ACTION_CHANGE_CUSTOM_ATTRIBUTE = 'Change of Product Custom Attribute in Magento Store';
 
+    const ACTION_CHANGE_PRODUCT_TIER_PRICE = 31;
+    const _ACTION_CHANGE_PRODUCT_TIER_PRICE = 'Change of Product Tier Price in Magento Store';
+
     const ACTION_MOVE_TO_LISTING = 21;
     const _ACTION_MOVE_TO_LISTING = 'Move to another Listing';
 
@@ -76,7 +84,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
     const _ACTION_MOVE_FROM_OTHER_LISTING = 'Move from 3rd Party Listing';
 
     const ACTION_CHANNEL_CHANGE = 25;
-    const _ACTION_CHANNEL_CHANGE = 'Change Item on Channel';
+    const _ACTION_CHANNEL_CHANGE = 'Change Product on Channel';
 
     const ACTION_TRANSLATE_PRODUCT = 28;
     const _ACTION_TRANSLATE_PRODUCT = 'Translation';
@@ -139,61 +147,20 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
         $this->createMessage($dataForAdd);
     }
 
-    //########################################
-
-    public function updateListingTitle($listingId , $title)
-    {
-        if ($title == '') {
-             return false;
-        }
-
-        $this->getResource()->getConnection()->update(
-            $this->getResource()->getMainTable(),
-            array('listing_title'=>$title),
-            array('listing_id = ?'=>(int)$listingId)
-        );
-
-        return true;
-    }
-
-    public function updateProductTitle($productId , $title)
-    {
-        if ($title == '') {
-            return false;
-        }
-
-        $this->getResource()->getConnection()->update(
-            $this->getResource()->getMainTable(),
-            array('product_title'=>$title),
-            array('product_id = ?'=>(int)$productId)
-        );
-
-        return true;
-    }
-
-    // ---------------------------------------
-
-    public function getActionTitle($type)
-    {
-        return $this->getActionTitleByClass(__CLASS__,$type);
-    }
-
-    public function getActionsTitles()
-    {
-        return $this->getActionsTitlesByClass(__CLASS__,'ACTION_');
-    }
-
     // ---------------------------------------
 
     public function clearMessages($listingId = NULL)
     {
-        $columnName = !is_null($listingId) ? 'listing_id' : NULL;
-        $this->clearMessagesByTable('Listing\Log',$columnName,$listingId);
-    }
+        $filters = array();
 
-    public function getLastActionIdConfigKey()
-    {
-        return 'listings';
+        if (!is_null($listingId)) {
+            $filters['listing_id'] = $listingId;
+        }
+        if (!is_null($this->componentMode)) {
+            $filters['component_mode'] = $this->componentMode;
+        }
+
+        $this->getResource()->clearMessages($filters);
     }
 
     //########################################
@@ -255,7 +222,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
         if (!is_null($actionId)) {
             $dataForAdd['action_id'] = (int)$actionId;
         } else {
-            $dataForAdd['action_id'] = $this->getNextActionId();
+            $dataForAdd['action_id'] = $this->getResource()->getNextActionId();
         }
 
         if (!is_null($action)) {
@@ -282,7 +249,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
             $dataForAdd['priority'] = self::PRIORITY_LOW;
         }
 
-        $dataForAdd['additional_data'] = json_encode($additionalData);
+        $dataForAdd['additional_data'] = $this->getHelper('Data')->jsonEncode($additionalData);
 
         return $dataForAdd;
     }

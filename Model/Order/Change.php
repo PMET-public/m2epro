@@ -8,6 +8,9 @@
 
 namespace Ess\M2ePro\Model\Order;
 
+/**
+ * @method \Ess\M2ePro\Model\ResourceModel\Order\Change getResource()
+ */
 class Change extends \Ess\M2ePro\Model\ActiveRecord\AbstractModel
 {
     const ACTION_UPDATE_PAYMENT  = 'update_payment';
@@ -60,7 +63,7 @@ class Change extends \Ess\M2ePro\Model\ActiveRecord\AbstractModel
      */
     public function getParams()
     {
-        $params = json_decode($this->getData('params'), true);
+        $params = $this->getHelper('Data')->jsonDecode($this->getData('params'));
 
         return is_array($params) ? $params : array();
     }
@@ -153,7 +156,7 @@ class Change extends \Ess\M2ePro\Model\ActiveRecord\AbstractModel
         $change->addData(array(
             'order_id'     => $orderId,
             'action'       => $action,
-            'params'       => json_encode($params),
+            'params'       => $this->getHelper('Data')->jsonEncode($params),
             'creator_type' => $creatorType,
             'component'    => $component,
             'hash'         => $hash

@@ -16,7 +16,7 @@ class Save extends \Ess\M2ePro\Controller\Adminhtml\Base
     {
         $post = $this->getRequest()->getPostValue();
         if (!$post) {
-            $this->setAjaxContent(json_encode(['success' => false]), false);
+            $this->setJsonContent(['success' => false]);
             return $this->getResult();
         }
 
@@ -30,7 +30,12 @@ class Save extends \Ess\M2ePro\Controller\Adminhtml\Base
             (int)$post['force_qty_value']
         );
 
-        $this->setAjaxContent(json_encode(['success' => true]), false);
+        $this->getHelper('Module')->getConfig()->setGroupValue(
+            '/magento/attribute/', 'price_type_converting',
+            (int)$post['price_type_converting_mode']
+        );
+
+        $this->setJsonContent(['success' => true]);
         return $this->getResult();
     }
 

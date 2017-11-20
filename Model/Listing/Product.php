@@ -8,6 +8,13 @@
 
 namespace Ess\M2ePro\Model\Listing;
 
+/**
+ * @method \Ess\M2ePro\Model\ResourceModel\Listing\Product getResource()
+ * @method \Ess\M2ePro\Model\Ebay\Listing\Product|\Ess\M2ePro\Model\Amazon\Listing\Product getChildObject()
+ * @method \Ess\M2ePro\Model\Listing\Product\Action\Configurator|NULL getActionConfigurator()
+ *
+ * @method setActionConfigurator(\Ess\M2ePro\Model\Listing\Product\Action\Configurator $configurator)
+ */
 class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractModel
 {
     const ACTION_LIST    = 1;
@@ -98,8 +105,8 @@ class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
                                     NULL,
                                     \Ess\M2ePro\Model\Listing\Log::ACTION_DELETE_PRODUCT_FROM_LISTING,
                                     // M2ePro\TRANSLATIONS
-                                    // Item was successfully Deleted
-                                    'Item was successfully Deleted',
+                                    // Product was successfully Deleted
+                                    'Product was successfully Deleted',
                                     \Ess\M2ePro\Model\Log\AbstractModel::TYPE_NOTICE,
                                     \Ess\M2ePro\Model\Log\AbstractModel::PRIORITY_MEDIUM);
 
@@ -193,10 +200,18 @@ class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
     /**
      * @param bool $asObjects
      * @param array $filters
+     * @param bool $tryToGetFromStorage
      * @return \Ess\M2ePro\Model\Listing\Product\Variation[]
      */
-    public function getVariations($asObjects = false, array $filters = array())
+    public function getVariations($asObjects = false, array $filters = array(), $tryToGetFromStorage = true)
     {
+        $storageKey = "listing_product_{$this->getId()}_variations_" .
+            md5((string)$asObjects . $this->getHelper('Data')->jsonEncode($filters));
+
+        if ($tryToGetFromStorage && ($cacheData = $this->getHelper('Data\Cache\Runtime')->getValue($storageKey))) {
+            return $cacheData;
+        }
+
         $variations = $this->getRelatedComponentItems(
             'Listing\Product\Variation','listing_product_id',$asObjects,$filters
         );
@@ -207,6 +222,12 @@ class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
                 $variation->setListingProduct($this);
             }
         }
+
+        $this->getHelper('Data\Cache\Runtime')->setValue($storageKey, $variations, array(
+            'listing_product',
+            "listing_product_{$this->getId()}",
+            "listing_product_{$this->getId()}_variations"
+        ));
 
         return $variations;
     }
@@ -264,6 +285,16 @@ class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
     public function getAdditionalData()
     {
         return $this->getSettings('additional_data');
+    }
+
+    // ---------------------------------------
+
+    /**
+     * @return bool
+     */
+    public function needSynchRulesCheck()
+    {
+        return (bool)$this->getData('need_synch_rules_check');
     }
 
     // ---------------------------------------
@@ -454,6 +485,45 @@ class Product extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
     public function getTrackingAttributes()
     {
         return $this->getChildObject()->getTrackingAttributes();
+    }
+
+    //########################################
+
+    public function afterSave()
+    {
+        if ($this->isComponentModeEbay()) {
+            $this->processEbayItemUUID();
+        }
+
+        return parent::afterSave();
+    }
+
+    // ---------------------------------------
+
+    private function processEbayItemUUID()
+    {
+        if ($this->isObjectCreatingState()) {
+            return;
+        }
+
+        $oldStatus = (int)$this->getOrigData('status');
+        $newStatus = (int)$this->getData('status');
+
+        $trackedStatuses = array(
+            \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED,
+            \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED,
+            \Ess\M2ePro\Model\Listing\Product::STATUS_FINISHED,
+            \Ess\M2ePro\Model\Listing\Product::STATUS_SOLD,
+        );
+
+        if ($oldStatus == $newStatus || !in_array($newStatus, $trackedStatuses)){
+            return;
+        }
+
+        // the child object will be saved on parent side, so we just set needed data
+        /** @var \Ess\M2ePro\Model\Ebay\Listing\Product $ebayListingProduct */
+        $ebayListingProduct = $this->getChildObject();
+        $ebayListingProduct->setData('item_uuid', $ebayListingProduct->generateItemUUID());
     }
 
     //########################################

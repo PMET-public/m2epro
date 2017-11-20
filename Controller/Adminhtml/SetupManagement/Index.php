@@ -2,8 +2,6 @@
 
 namespace Ess\M2ePro\Controller\Adminhtml\SetupManagement;
 
-use Ess\M2ePro\Model\Exception;
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Message\MessageInterface;
 use Magento\Framework\Config\ConfigOptionsListConstants;
 use Magento\Setup\Model\Cron;
@@ -12,29 +10,29 @@ use Ess\M2ePro\Setup\LoggerFactory;
 
 class Index extends \Magento\Backend\App\Action
 {
-    const AUTHORIZATION_COOKIE_NAME  = '_m2e_dev_auth_';
-    const AUTHORIZATION_COOKIE_VALUE = 'dbc212e18c98fc59e39a173267847064af5f05ad';
+    const AUTHORIZATION_COOKIE_NAME  = '_auth_';
+    const AUTHORIZATION_COOKIE_VALUE = 'secure';
 
     /** @var \Magento\Framework\App\ResourceConnection $resourceConnection */
-    private $resourceConnection;
+    protected $resourceConnection;
 
     /** @var \Magento\Framework\Module\ModuleResource $moduleResource */
-    private $moduleResource;
+    protected $moduleResource;
 
     /** @var \Magento\Framework\Module\ModuleListInterface $moduleList */
-    private $moduleList;
+    protected $moduleList;
 
     /** @var \Magento\Framework\Module\PackageInfo $packageInfo */
-    private $packageInfo;
+    protected $packageInfo;
 
     /** @var \Magento\Framework\Locale\ResolverInterface $localeResolver */
-    private $localeResolver;
+    protected $localeResolver;
 
     /** @var \Magento\Framework\View\Design\Theme\ResolverInterface $themeResolver */
-    private $themeResolver;
+    protected $themeResolver;
 
     /** @var \Magento\Framework\App\Filesystem\DirectoryList $directoryList */
-    private $directoryList;
+    protected $directoryList;
 
     /** @var \Magento\Framework\App\CacheInterface $appCache */
     protected $appCache;
@@ -49,19 +47,13 @@ class Index extends \Magento\Backend\App\Action
     protected $fileSystem;
 
     /** @var \Magento\Framework\App\DeploymentConfig $deploymentConfig */
-    private $deploymentConfig;
-
-    /** @var \Magento\Setup\Model\Cron\Queue\Reader $cronJobQueueReader */
-    private $cronJobQueueReader;
-
-    /** @var \Magento\Setup\Model\Cron\Queue $cronJobQueue */
-    private $cronJobQueue;
+    protected $deploymentConfig;
 
     /** @var \Magento\Framework\Stdlib\CookieManagerInterface $cookieManager */
-    private $cookieManager;
+    protected $cookieManager;
 
     /** @var \Magento\Framework\Stdlib\Cookie\CookieMetadataFactory $cookieManager */
-    private $cookieMetadataFactory;
+    protected $cookieMetadataFactory;
 
     //########################################
 
@@ -76,39 +68,27 @@ class Index extends \Magento\Backend\App\Action
         \Magento\Framework\App\State $appState,
         \Magento\Framework\Filesystem $filesystem,
         \Magento\Framework\App\DeploymentConfig $deploymentConfig,
-        \Magento\Setup\Model\Cron\Queue\Reader $cronJobQueueReader,
         \Magento\Framework\Stdlib\CookieManagerInterface $cookieManager,
         \Magento\Framework\Stdlib\Cookie\CookieMetadataFactory $cookieMetadataFactory,
-        \Magento\Setup\Model\WebLogger $webLogger,
         \Magento\Backend\App\Action\Context $context
     ) {
         parent::__construct($context);
 
         $this->resourceConnection = $this->_objectManager->get('Magento\Framework\App\ResourceConnection');
-
         $this->moduleResource     = new \Magento\Framework\Module\ModuleResource($dbContext);
-        $this->moduleList         = $moduleList;
-        $this->packageInfo        = $packageInfo;
-        $this->localeResolver     = $context->getLocaleResolver();
-        $this->themeResolver      = $themeResolver;
-        $this->directoryList      = $directoryList;
-        $this->appCache           = $appCache;
-        $this->cacheState         = $cacheState;
-        $this->appState           = $appState;
-        $this->fileSystem         = $filesystem;
-        $this->deploymentConfig   = $deploymentConfig;
-        $this->cronJobQueueReader = $cronJobQueueReader;
 
+        $this->moduleList            = $moduleList;
+        $this->packageInfo           = $packageInfo;
+        $this->localeResolver        = $context->getLocaleResolver();
+        $this->themeResolver         = $themeResolver;
+        $this->directoryList         = $directoryList;
+        $this->appCache              = $appCache;
+        $this->cacheState            = $cacheState;
+        $this->appState              = $appState;
+        $this->fileSystem            = $filesystem;
+        $this->deploymentConfig      = $deploymentConfig;
         $this->cookieManager         = $cookieManager;
         $this->cookieMetadataFactory = $cookieMetadataFactory;
-
-        $this->_objectManager->configure([
-            'preferences' => [
-                'Zend\ServiceManager\ServiceLocatorInterface' => 'Zend\ServiceManager\ServiceManager',
-            ]
-        ]);
-
-        $this->cronJobQueue = $this->_objectManager->create('Magento\Setup\Model\Cron\Queue');
     }
 
     //########################################
@@ -391,6 +371,26 @@ HTML;
 <a href="{$url}">[change]</a><br>
 HTML;
 
+        $migrationM1Status = $this->getMagentoCoreConfigValue('m2epro/migrationFromMagento1/status');
+        if (!empty($migrationM1Status)) {
+            $className = 'feature-enabled';
+        } else {
+            $migrationM1Status = 'none';
+            $className = 'feature-disabled';
+        }
+
+        $url = $this->_url->getUrl('*/*/*', ['action' => 'setMagentoCoreConfigValue',
+                                             '_query' => [
+                                                 'config_path'  => 'm2epro/migrationFromMagento1/status',
+                                                 'config_value' => 'prepared'
+                                             ]]);
+
+        $html .= <<<HTML
+<br>
+<span>Migration from M1 status: <span class="{$className}">{$migrationM1Status}</span></span>&nbsp;
+<a href="{$url}">[set-prepared]</a><br>
+HTML;
+
         $html .= "</div>";
         return $html;
     }
@@ -446,8 +446,8 @@ HTML;
     {
         $html = '<div>';
 
-        $queue = (array)json_decode($this->cronJobQueueReader->read(), true);
-        $isExistCronStatusFile = $this->fileSystem->getDirectoryWrite(DirectoryList::VAR_DIR)
+        $queue = $this->getCronJobQueue();
+        $isExistCronStatusFile = $this->fileSystem->getDirectoryRead(DirectoryList::VAR_DIR)
                                       ->isExist(Cron\ReadinessCheck::SETUP_CRON_JOB_STATUS_FILE);
 
         if (!$isExistCronStatusFile) {
@@ -505,8 +505,8 @@ HTML;
 
         usort($tables, function($a, $b) {
 
-            $aResult = strpos($a, '_backup_');
-            $bResult = strpos($b, '_backup_');
+            $aResult = strpos($a, '__b_');
+            $bResult = strpos($b, '__b_');
 
             if ($aResult > 0 && $bResult === false) {
                 return -1;
@@ -727,9 +727,12 @@ HTML;
 
         if ($isExistSetupLogFile) {
 
-            $url = $this->_url->getUrl('*/*/*', ['action' => 'downloadSetupLogFile']);
+            $download = $this->_url->getUrl('*/*/*', ['action' => 'downloadSetupLogFile']);
+            $remove   = $this->_url->getUrl('*/*/*', ['action' => 'removeSetupLogFile']);
             $html .= <<<HTML
-<br><a href="{$url}">[download setup-log-file]</a><br>
+<br>
+<a href="{$download}">[download setup-log-file]</a><br>
+<a href="{$remove}">[remove setup-log-file]</a><br>
 HTML;
         }
 
@@ -754,15 +757,17 @@ HTML;
     public function setMagentoCoreConfigValueAction()
     {
         $path  = $this->getRequest()->getParam('config_path');
-        $value = (int)$this->getRequest()->getParam('config_value');
+        $value = $this->getRequest()->getParam('config_value');
 
         if (!in_array($path, [
             'm2epro/general/maintenance',
             'm2epro/setup/ignore_maintenace',
-            'm2epro/setup/allow_rollback_from_backup'
+            'm2epro/setup/allow_rollback_from_backup',
+
+            'm2epro/migrationFromMagento1/status'
         ])) {
 
-            $this->messageManager->addError("This config path is not supported [{$path}].");
+            $this->messageManager->addErrorMessage("This config path is not supported [{$path}].");
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
@@ -802,7 +807,7 @@ HTML;
 
         if (!$version) {
 
-            $this->messageManager->addError('Version is not provided.');
+            $this->messageManager->addErrorMessage('Version is not provided.');
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
@@ -827,14 +832,34 @@ HTML;
     public function addMagentoCoreUpgradeTaskAction()
     {
         // Static Content will regenerated automatically
-        $this->cronJobQueue->addJobs(
-            [['name' => \Magento\Setup\Model\Cron\JobFactory::JOB_UPGRADE, 'params' => []]]
-        );
+        $this->addCronJobToQueue(Cron\JobFactory::JOB_UPGRADE);
 
-        empty($errorMessage) ? $this->getMessageManager()->addSuccess('Task has been successfully created.')
-                             : $this->getMessageManager()->addError($errorMessage);
+        empty($errorMessage) ? $this->getMessageManager()->addSuccessMessage('Task has been successfully created.')
+                             : $this->getMessageManager()->addErrorMessage($errorMessage);
 
         return $this->_redirect($this->_url->getUrl('*/*/*'));
+    }
+
+    private function getCronJobQueue()
+    {
+        $fileName = '.update_queue.json';
+        $directory = $this->fileSystem->getDirectoryRead(DirectoryList::VAR_DIR);
+
+        if (!$directory->isExist($fileName)) {
+            return [];
+        }
+
+        $jobs = (array)json_decode($directory->readFile($fileName), true);
+        return $jobs;
+    }
+
+    private function addCronJobToQueue($jobName, array $jobParams = [])
+    {
+        $jobs = $this->getCronJobQueue();
+        $jobs[Cron\Queue::KEY_JOBS][] = ['name' => $jobName, 'params' => $jobParams];
+
+        $directory = $this->fileSystem->getDirectoryWrite(DirectoryList::VAR_DIR);
+        $directory->writeFile('.update_queue.json', json_encode($jobs, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 
     //----------------------------------------
@@ -846,14 +871,14 @@ HTML;
 
         if (strpos($tableName, $tablesPrefix.'m2epro_') !== 0) {
 
-            $this->getMessageManager()->addError("Only M2E Pro tables are supported. Table: [{$tableName}].");
+            $this->getMessageManager()->addErrorMessage("Only M2E Pro tables are supported. Table: [{$tableName}].");
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
         $this->resourceConnection->getConnection()
              ->truncateTable($tableName);
 
-        $this->getMessageManager()->addSuccess("Successfully truncated [{$tableName}].");
+        $this->getMessageManager()->addSuccessMessage("Successfully truncated [{$tableName}].");
         return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 
@@ -864,14 +889,14 @@ HTML;
 
         if (strpos($tableName, $tablesPrefix.'m2epro_') !== 0) {
 
-            $this->getMessageManager()->addError("Only M2E Pro tables are supported. Table: [{$tableName}].");
+            $this->getMessageManager()->addErrorMessage("Only M2E Pro tables are supported. Table: [{$tableName}].");
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
         $this->resourceConnection->getConnection()
              ->dropTable($tableName);
 
-        $this->getMessageManager()->addSuccess("Successfully dropped [{$tableName}].");
+        $this->getMessageManager()->addSuccessMessage("Successfully dropped [{$tableName}].");
         return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 
@@ -881,7 +906,7 @@ HTML;
     {
         if (!$id = $this->getRequest()->getParam('id')) {
 
-            $this->getMessageManager()->addError('Row id is not specified.');
+            $this->getMessageManager()->addErrorMessage('Row id is not specified.');
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
@@ -889,7 +914,7 @@ HTML;
              ->delete($this->resourceConnection->getTableName('m2epro_setup'),
                       ['id = ?' => (int)$id]);
 
-        $this->getMessageManager()->addSuccess('Successfully removed.');
+        $this->getMessageManager()->addSuccessMessage('Successfully removed.');
         return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 
@@ -901,7 +926,7 @@ HTML;
 
         if (!$id || is_null($column) || is_null($value)) {
 
-            $this->getMessageManager()->addError('Some required data is not specified.');
+            $this->getMessageManager()->addErrorMessage('Some required data is not specified.');
             return $this->_redirect($this->_url->getUrl('*/*/*'));
         }
 
@@ -910,7 +935,7 @@ HTML;
                      [$column => $value],
                      ['id = ?' => (int)$id]);
 
-        $this->getMessageManager()->addSuccess('Successfully updated.');
+        $this->getMessageManager()->addSuccessMessage('Successfully updated.');
         return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 
@@ -943,6 +968,8 @@ HTML;
         $this->getResponse()->setContent('<pre>' . $output);
     }
 
+    //----------------------------------------
+
     public function downloadSetupLogFileAction()
     {
         $filePath = $this->fileSystem->getDirectoryWrite(DirectoryList::LOG)->getAbsolutePath() .
@@ -952,10 +979,16 @@ HTML;
         $this->getResponse()->setHeader('Content-length', filesize($filePath));
         $this->getResponse()->setHeader('Content-Disposition', 'attachment' . '; filename=' .basename($filePath));
 
-        $this->getResponse()->sendHeaders ();
+        $this->getResponse()->setContent(file_get_contents($filePath));
+    }
 
-        readfile($filePath);
-        die;
+    public function removeSetupLogFileAction()
+    {
+        $directory = $this->fileSystem->getDirectoryWrite(DirectoryList::LOG);
+        $directory->delete('m2epro' .DIRECTORY_SEPARATOR. LoggerFactory::LOGFILE_NAME);
+
+        $this->getMessageManager()->addSuccessMessage('Successfully removed.');
+        return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 
     //----------------------------------------
@@ -964,7 +997,7 @@ HTML;
     {
         $this->appCache->clean();
 
-        $this->messageManager->addSuccess('Cache has been successfully cleared.');
+        $this->messageManager->addSuccessMessage('Cache has been successfully cleared.');
         return $this->_redirect($this->_url->getUrl('*/*/*'));
     }
 

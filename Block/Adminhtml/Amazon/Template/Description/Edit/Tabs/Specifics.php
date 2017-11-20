@@ -74,7 +74,7 @@ class Specifics extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
                 <br/>
                 More detailed information about ability to work with this Page you can find
                 <a href="%url%" target="_blank" class="external-link">here</a>.',
-                $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/J4MVAQ')
+                $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/YAYtAQ')
             )
         ]);
 
@@ -139,7 +139,7 @@ CSS
                 this Value will be overwritten and the Value you selected will not be/cannot be used.'
         ]);
 
-        $formData = json_encode($this->formData);
+        $formData = $this->getHelper('Data')->jsonEncode($this->formData);
         $this->js->add("
             wait(
                 function() { return typeof AmazonTemplateDescriptionCategorySpecificObj != 'undefined'; },

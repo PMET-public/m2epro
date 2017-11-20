@@ -58,7 +58,7 @@ HTML
 
         if ($earlierFormData) {
             $earlierFormData = $earlierFormData->getValue();
-            $earlierFormData = (array)json_decode($earlierFormData, true);
+            $earlierFormData = (array)$this->getHelper('Data')->jsonDecode($earlierFormData);
             $userInfo = array_merge($userInfo, $earlierFormData);
         }
 
@@ -91,6 +91,7 @@ HTML
                 'name' => 'email',
                 'label' => $this->__('Email'),
                 'value' => $this->getUserInfoValue('email'),
+                'class' => 'M2ePro-validate-email',
                 'required' => true,
                 'disabled' => $this->getData('isLicenseStepFinished')
             ]

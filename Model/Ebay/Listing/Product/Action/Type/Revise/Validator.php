@@ -32,6 +32,10 @@ class Validator extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Valid
             return false;
         }
 
+        if (!$this->validateIsVariationProductWithoutVariations()) {
+            return false;
+        }
+
         if (!$this->validateCategory()) {
             return false;
         }
@@ -44,7 +48,15 @@ class Validator extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Valid
 
         if ($this->getEbayListingProduct()->isVariationsReady()) {
 
-            return $this->validateVariationsFixedPrice();
+            if (!$this->validateVariationsOptions()) {
+                return false;
+            }
+
+            if (!$this->validateVariationsFixedPrice()) {
+                return false;
+            }
+
+            return true;
         }
 
         if ($this->getEbayListingProduct()->isListingTypeAuction()) {

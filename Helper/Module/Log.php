@@ -29,7 +29,7 @@ class Log extends \Ess\M2ePro\Helper\AbstractHelper
             'links'  => $links
         );
 
-        return json_encode($descriptionData);
+        return $this->getHelper('Data')->jsonEncode($descriptionData);
     }
 
     /**
@@ -46,7 +46,7 @@ class Log extends \Ess\M2ePro\Helper\AbstractHelper
             return $this->getHelper('Module\Translation')->__($string);
         }
 
-        $descriptionData = json_decode($string,true);
+        $descriptionData = $this->getHelper('Data')->jsonDecode($string);
         $string = $this->getHelper('Module\Translation')->__($descriptionData['string']);
 
         if (!empty($descriptionData['params'])) {
@@ -67,7 +67,7 @@ class Log extends \Ess\M2ePro\Helper\AbstractHelper
         foreach ($params as $key=>$value) {
 
             if (isset($value{0}) && $value{0} == '{') {
-                $tempValueArray = json_decode($value, true);
+                $tempValueArray = $this->getHelper('Data')->jsonDecode($value);
                 is_array($tempValueArray) && $value = $this->decodeDescription($value);
             }
 
@@ -130,6 +130,72 @@ class Log extends \Ess\M2ePro\Helper\AbstractHelper
         }
 
         return $resultString;
+    }
+
+    // ---------------------------------------
+
+    public function getActionTitleByClass($class, $type)
+    {
+        $reflectionClass = new \ReflectionClass ($class);
+        $tempConstants = $reflectionClass->getConstants();
+
+        foreach ($tempConstants as $key => $value) {
+            if ($key == '_'.$type) {
+                return $this->getHelper('Module\Translation')->__($key);
+            }
+        }
+
+        return '';
+    }
+
+    public function getActionsTitlesByClass($class)
+    {
+        switch ($class) {
+
+            case 'Ess\M2ePro\Model\Listing\Log':
+            case 'Ess\M2ePro\Model\Listing\Other\Log':
+            case 'Ess\M2ePro\Model\Ebay\Account\PickupStore\Log':
+                $prefix = 'ACTION_';
+                break;
+
+            case 'Ess\M2ePro\Model\Synchronization\Log':
+                $prefix = 'TASK_';
+                break;
+        }
+
+        $reflectionClass = new \ReflectionClass ($class);
+        $tempConstants = $reflectionClass->getConstants();
+
+        $actionsNames = array();
+        foreach ($tempConstants as $key => $value) {
+            if (substr($key,0,strlen($prefix)) == $prefix) {
+                $actionsNames[$key] = $value;
+            }
+        }
+
+        $actionsValues = array();
+        foreach ($actionsNames as $action => $valueAction) {
+            foreach ($tempConstants as $key => $valueConstant) {
+                if ($key == '_'.$action) {
+                    $actionsValues[$valueAction] = $this->helperFactory
+                        ->getObject('Module\Translation')->__($valueConstant);
+                }
+            }
+        }
+
+        return $actionsValues;
+    }
+
+    public function getStatusByResultType($resultType)
+    {
+        $typesStatusesMap = array(
+            \Ess\M2ePro\Model\Log\AbstractModel::TYPE_NOTICE  => \Ess\M2ePro\Helper\Data::STATUS_SUCCESS,
+            \Ess\M2ePro\Model\Log\AbstractModel::TYPE_SUCCESS => \Ess\M2ePro\Helper\Data::STATUS_SUCCESS,
+            \Ess\M2ePro\Model\Log\AbstractModel::TYPE_WARNING => \Ess\M2ePro\Helper\Data::STATUS_WARNING,
+            \Ess\M2ePro\Model\Log\AbstractModel::TYPE_ERROR   => \Ess\M2ePro\Helper\Data::STATUS_ERROR,
+        );
+
+        return $typesStatusesMap[$resultType];
     }
 
     //########################################

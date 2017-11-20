@@ -10,8 +10,6 @@ namespace Ess\M2ePro\Model\ActiveRecord\Component\Parent;
 
 abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\AbstractModel
 {
-    protected $createMode = NULL;
-
     protected $childMode = NULL;
 
     /**
@@ -67,6 +65,11 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\Ab
     }
 
     // ---------------------------------------
+
+    public function hasChildObjectLoaded()
+    {
+        return !is_null($this->childObject);
+    }
 
     public function setChildObject(\Ess\M2ePro\Model\ActiveRecord\Component\Child\AbstractModel $object)
     {
@@ -183,6 +186,8 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\Ab
 
     public function save($reloadOnCreate = false)
     {
+        $isObjectNew = $this->isObjectNew();
+
         if (!is_null($this->childMode) && is_null($this->getData('component_mode'))) {
             $this->setData('component_mode',$this->childMode);
         }
@@ -197,7 +202,10 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\Ab
             return $temp;
         }
 
-        $this->getChildObject()->save();
+        // The Child object is already saved in Resource Model on _afterSave()
+        if (!$isObjectNew) {
+            $this->getChildObject()->save();
+        }
 
         return $temp;
     }
@@ -239,32 +247,6 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\Ab
     //########################################
 
     /**
-     * @return null
-     */
-    public function getCreateMode()
-    {
-        return $this->createMode;
-    }
-
-    /**
-     * @param null $createMode
-     */
-    public function setCreateMode($createMode)
-    {
-        $this->createMode = $createMode;
-    }
-
-    /**
-     * @return boolean
-     */
-    public function isCreateMode()
-    {
-        return (bool) $this->createMode;
-    }
-
-    //########################################
-
-    /**
      * @param string $modelName
      * @param string $fieldName
      * @param bool $asObjects
@@ -298,22 +280,6 @@ abstract class AbstractModel extends \Ess\M2ePro\Model\ActiveRecord\Component\Ab
     }
 
     //########################################
-
-    protected function _getResource()
-    {
-        if (is_null($this->childMode)) {
-            return parent::_getResource();
-        }
-
-        if (empty($this->_resourceName) && empty($this->_resource)) {
-            throw new \Magento\Framework\Exception\LocalizedException(
-                new \Magento\Framework\Phrase('The resource isn\'t set.')
-            );
-        }
-
-        return $this->_resource ?: \Magento\Framework\App\ObjectManager::getInstance()->get($this->_resourceName)
-            ->setChildMode($this->childMode);
-    }
 
     public function getResourceCollection()
     {

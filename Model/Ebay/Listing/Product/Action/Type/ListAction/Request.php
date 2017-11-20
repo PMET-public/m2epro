@@ -10,6 +10,41 @@ namespace Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\ListAction;
 
 class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
 {
+    protected $isVerifyCall = false;
+
+    //########################################
+
+    protected function beforeBuildDataEvent()
+    {
+        if ($this->isVerifyCall) {
+            parent::beforeBuildDataEvent();
+            return;
+        }
+
+        $additionalData = $this->getListingProduct()->getAdditionalData();
+
+        unset($additionalData['synch_template_list_rules_note']);
+        unset($additionalData['add_to_schedule']);
+        unset($additionalData['item_duplicate_action_required']);
+
+        $this->getListingProduct()->setSettings('additional_data', $additionalData);
+
+        $this->getListingProduct()->setData('synch_status', \Ess\M2ePro\Model\Listing\Product::SYNCH_STATUS_OK);
+        $this->getListingProduct()->setData('synch_reasons', null);
+        $this->getListingProduct()->getChildObject()->setData('is_duplicate', 0);
+
+        $this->getListingProduct()->save();
+    }
+
+    protected function afterBuildDataEvent(array $data)
+    {
+        $this->getConfigurator()->setPriority(
+            \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Configurator::PRIORITY_LIST
+        );
+
+        parent::afterBuildDataEvent($data);
+    }
+
     //########################################
 
     /**
@@ -17,10 +52,17 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
      */
     public function getActionData()
     {
-        return array_merge(
+        if (!$uuid = $this->getEbayListingProduct()->getItemUUID()) {
+
+            $uuid = $this->getEbayListingProduct()->generateItemUUID();
+            $this->getEbayListingProduct()->setData('item_uuid', $uuid)->save();
+        }
+
+        $data = array_merge(
 
             array(
-                'sku' => $this->getEbayListingProduct()->getSku()
+                'sku'       => $this->getEbayListingProduct()->getSku(),
+                'item_uuid' => $uuid,
             ),
 
             $this->getRequestVariations()->getRequestData(),
@@ -33,15 +75,24 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
             $this->getRequestSelling()->getRequestData(),
             $this->getRequestDescription()->getRequestData()
         );
+
+        $this->isVerifyCall && $data['verify_call'] = true;
+        return $data;
     }
 
     //########################################
 
-    public function resetVariations()
+    protected function initializeVariations()
     {
-        $this->initializeVariations();
+        if (!$this->getEbayListingProduct()->isVariationMode()) {
+            foreach ($this->getListingProduct()->getVariations(true) as $variation) {
+                $variation->delete();
+            }
+        }
 
-        if (!$this->getIsVariationItem()) {
+        parent::initializeVariations();
+
+        if (!$this->getEbayListingProduct()->isVariationMode()) {
             return;
         }
 
@@ -56,7 +107,7 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
             /** @var \Ess\M2ePro\Model\Ebay\Listing\Product\Variation $ebayVariation */
             $ebayVariation = $variation->getChildObject();
 
-            if ($ebayVariation->isDelete() || !$this->getIsVariationItem()) {
+            if ($ebayVariation->isDelete()) {
                 $variation->delete();
                 continue;
             }
@@ -87,37 +138,6 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
 
             $needSave && $variation->save();
         }
-    }
-
-    public function getTheSameProductAlreadyListed()
-    {
-        $config = $this->moduleConfig
-            ->getGroupValue('/ebay/connector/listing/', 'check_the_same_product_already_listed');
-
-        if (!is_null($config) && $config != 1) {
-            return NULL;
-        }
-
-        $listingTable = $this->activeRecordFactory->getObject('Listing')->getResource()->getMainTable();
-        $listingProductCollection = $this->ebayFactory->getObject('Listing\Product')->getCollection();
-
-        $listingProductCollection
-            ->getSelect()
-            ->join(array('l'=>$listingTable),'`main_table`.`listing_id` = `l`.`id`',array());
-
-        $listingProductCollection
-            ->addFieldToFilter('status',array('neq' => \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED))
-            ->addFieldToFilter('product_id',$this->getListingProduct()->getProductId())
-            ->addFieldToFilter('account_id',$this->getAccount()->getId())
-            ->addFieldToFilter('marketplace_id',$this->getMarketplace()->getId());
-
-        $theSameListingProduct = $listingProductCollection->getFirstItem();
-
-        if (!$theSameListingProduct->getId()) {
-            return NULL;
-        }
-
-        return $theSameListingProduct;
     }
 
     //########################################
@@ -170,8 +190,7 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
         }
 
         $data = $this->doReplaceVariationSpecifics($data, $replacements);
-
-        $data['variations_specifics_replacements'] = $replacements;
+        $this->addMetaData('variations_specifics_replacements', $replacements);
 
         return $data;
     }
@@ -185,6 +204,14 @@ class Request extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Type\Request
         $data['without_mpn_variation_issue'] = true;
 
         return $data;
+    }
+
+    //########################################
+
+    public function setIsVerifyCall($value)
+    {
+        $this->isVerifyCall = $value;
+        return $this;
     }
 
     //########################################

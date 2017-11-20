@@ -33,7 +33,7 @@ class Order extends AbstractForm
     {
         $account = $this->getHelper('Data\GlobalData')->getValue('edit_account');
         $ordersSettings = !is_null($account) ? $account->getChildObject()->getData('magento_orders_settings') : [];
-        $ordersSettings = !empty($ordersSettings) ? json_decode($ordersSettings, true) : array();
+        $ordersSettings = !empty($ordersSettings) ? $this->getHelper('Data')->jsonDecode($ordersSettings) : array();
 
         // ---------------------------------------
         $websites = $this->getHelper('Magento\Store\Website')->getWebsites(true);
@@ -59,14 +59,14 @@ class Order extends AbstractForm
         // ---------------------------------------
 
         $productTaxClasses = $this->taxClass->getCollection()
-            ->addFieldToFilter('class_type', \Magento\Tax\Model\ClassModel::TAX_CLASS_TYPE_CUSTOMER)
+            ->addFieldToFilter('class_type', \Magento\Tax\Model\ClassModel::TAX_CLASS_TYPE_PRODUCT)
             ->toOptionArray();
         $none = array('value' => \Ess\M2ePro\Model\Magento\Product::TAX_CLASS_ID_NONE, 'label' => $this->__('None'));
         array_unshift($productTaxClasses, $none);
 
         $formData = !is_null($account) ? array_merge($account->getData(), $account->getChildObject()->getData()) : [];
         $formData['magento_orders_settings'] = !empty($formData['magento_orders_settings'])
-            ? json_decode($formData['magento_orders_settings'], true) : array();
+            ? $this->getHelper('Data')->jsonDecode($formData['magento_orders_settings']) : array();
 
         $billingAddressTheSame = Account::MAGENTO_ORDERS_BILLING_ADDRESS_MODE_SHIPPING_IF_SAME_CUSTOMER_AND_RECIPIENT;
 
@@ -81,7 +81,7 @@ class Order extends AbstractForm
                     'mode' => Account::MAGENTO_ORDERS_LISTINGS_OTHER_MODE_YES,
                     'product_mode' => Account::MAGENTO_ORDERS_LISTINGS_OTHER_PRODUCT_MODE_IMPORT,
                     'product_tax_class_id' => \Ess\M2ePro\Model\Magento\Product::TAX_CLASS_ID_NONE,
-                    'store_id' => NULL,
+                    'store_id' => $this->getHelper('Magento\Store')->getDefaultStoreId(),
                 ),
                 'number' => array(
                     'source' => Account::MAGENTO_ORDERS_NUMBER_SOURCE_MAGENTO,
@@ -130,7 +130,7 @@ class Order extends AbstractForm
 
         $isEdit && $defaults['magento_orders_settings']['refund_and_cancellation']['refund_mode'] = 0;
 
-        $formData = $this->getHelper('Data')->arrayReplaceRecursive($defaults, $formData);
+        $formData = array_replace_recursive($defaults, $formData);
 
         $form = $this->_formFactory->create();
 
@@ -138,12 +138,18 @@ class Order extends AbstractForm
             self::HELP_BLOCK,
             [
                 'content' => $this->__(<<<HTML
-<p>Specify how M2E Pro should manage the imported from Amazon Orders for the Items listed using
-M2E Pro or other tools.</p><br>
-<p><strong>Note:</strong> If an Amazon Order is received, Magento Product QTY decreases only if a Magento
-Order is created.</p><br>
-<p>More detailed information about how to work with this Page you can find
-<a href="%url%" target="_blank" class="external-link">here</a>.</p>
+<p>Specify how M2E Pro should manage the Orders imported from Amazon.</p><br/>
+<p>You are able to configure the different rules of <strong>Magento Order Creation</strong> considering whether the
+Item was listed via M2E Pro or by some other software.</p><br/>
+<p>The <strong>Reserve Quantity</strong> feature will automatically work for imported Amazon Orders with Pending Status
+to hold the Stock until Magento Order is created or the reservation term is expired.</p><br/>
+<p>Moreover, you can provide the settings for <strong>Orders fulfilled by Amazon</strong>. Specify whether the
+corresponding Magento Order has to be created and or not. Additionally, you are able to reduce Magento Stock taking
+into account the FBA Orders.</p><br/>
+<p>Besides, you can set your preferences for the <strong>Refund & Cancellation, Tax, Customer, Order Number</strong>
+and <strong>Order Status Mapping</strong> Settings as well as specify the automatic creation of invoices and
+shipment notifications.</p><br/>
+<p>More detailed information you can find <a href="%url%" target="_blank" class="external-link">here</a>.</p>
 HTML
                     ,
                     $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/NgItAQ')

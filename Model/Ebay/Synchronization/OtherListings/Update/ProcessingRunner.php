@@ -10,6 +10,9 @@ namespace Ess\M2ePro\Model\Ebay\Synchronization\OtherListings\Update;
 
 class ProcessingRunner extends \Ess\M2ePro\Model\Connector\Command\Pending\Processing\Runner\Partial
 {
+    const MAX_LIFETIME = 90720;
+    const PENDING_REQUEST_MAX_LIFE_TIME = 86400;
+
     const LOCK_ITEM_PREFIX = 'synchronization_ebay_other_listings_update';
 
     // ##################################
@@ -20,8 +23,8 @@ class ProcessingRunner extends \Ess\M2ePro\Model\Connector\Command\Pending\Proce
 
         $params = $this->getParams();
 
-        /** @var $lockItem \Ess\M2ePro\Model\LockItem */
-        $lockItem = $this->activeRecordFactory->getObject('LockItem');
+        /** @var $lockItem \Ess\M2ePro\Model\Lock\Item\Manager */
+        $lockItem = $this->modelFactory->getObject('Lock\Item\Manager');
         $lockItem->setNick(self::LOCK_ITEM_PREFIX.'_'.$params['account_id']);
         $lockItem->setMaxInactiveTime(self::MAX_LIFETIME);
         $lockItem->create();
@@ -43,8 +46,8 @@ class ProcessingRunner extends \Ess\M2ePro\Model\Connector\Command\Pending\Proce
 
         $params = $this->getParams();
 
-        /** @var $lockItem \Ess\M2ePro\Model\LockItem */
-        $lockItem = $this->activeRecordFactory->getObject('LockItem');
+        /** @var $lockItem \Ess\M2ePro\Model\Lock\Item\Manager */
+        $lockItem = $this->modelFactory->getObject('Lock\Item\Manager');
         $lockItem->setNick(self::LOCK_ITEM_PREFIX.'_'.$params['account_id']);
         $lockItem->remove();
 

@@ -51,7 +51,11 @@ class UpgradeData implements UpgradeDataInterface
      */
     private static $availableVersionUpgrades = [
         '1.0.0' => ['1.1.0'],
-        '1.1.0' => ['1.2.0']
+        '1.1.0' => ['1.2.0'],
+        '1.2.0' => ['1.3.0'],
+        '1.3.0' => ['1.3.1'],
+        '1.3.1' => ['1.3.2'],
+        '1.3.2' => ['1.3.3'],
     ];
 
     //########################################
@@ -93,10 +97,12 @@ class UpgradeData implements UpgradeDataInterface
             return;
         }
 
+        if ($this->helperFactory->getObject('Data\GlobalData')->getValue('is_install_process')) {
+            return;
+        }
+
         if ($this->helperFactory->getObject('Module\Maintenance\General')->isEnabled() &&
-            !$this->helperFactory->getObject('Data\GlobalData')->getValue('is_install_process') &&
-            !$this->isMaintenanceCanBeIgnored()
-        ) {
+            !$this->isMaintenanceCanBeIgnored()) {
             return;
         }
 
@@ -106,17 +112,12 @@ class UpgradeData implements UpgradeDataInterface
 
         $this->checkPreconditions();
 
-        $versionsToExecute = $this->getVersionsToExecute();
-        if (empty($versionsToExecute)) {
-            $this->helperFactory->getObject('Module\Maintenance\General')->disable();
-            return;
-        }
-
-        $this->helperFactory->getObject('Module\Maintenance\General')->enable();
         $this->installer->startSetup();
+        $this->helperFactory->getObject('Module\Maintenance\General')->enable();
 
         try {
 
+            $versionsToExecute = $this->getVersionsToExecute();
             foreach ($versionsToExecute as $versionFrom => $versionTo) {
 
                 /** @var Manager $upgradeManager */
@@ -129,7 +130,7 @@ class UpgradeData implements UpgradeDataInterface
                 $setupObject  = $this->initSetupObject($versionFrom, $versionTo);
                 $backupObject = $upgradeManager->getBackupObject();
 
-                if ($this->isAllowedRollbackFromBackup()) {
+                if ($setupObject->isBackuped() && $this->isAllowedRollbackFromBackup()) {
                     $backupObject->rollback();
                 }
 
@@ -148,16 +149,15 @@ class UpgradeData implements UpgradeDataInterface
         } catch (\Exception $exception) {
 
             $this->logger->error($exception, ['source' => 'UpgradeData']);
-            $this->installer->endSetup();
-
             $this->helperFactory->getObject('Module\Exception')->process($exception);
             $this->helperFactory->getObject('Data\GlobalData')->setValue('is_setup_failed', true);
 
+            $this->installer->endSetup();
             return;
         }
 
-        $this->installer->endSetup();
         $this->helperFactory->getObject('Module\Maintenance\General')->disable();
+        $this->installer->endSetup();
     }
 
     //########################################
@@ -168,17 +168,23 @@ class UpgradeData implements UpgradeDataInterface
             return false;
         }
 
-        $setupRows = $this->getConnection()->select()->from($this->getFullTableName('setup'))->query()->fetchAll();
+        $setupRow = $this->getConnection()->select()
+            ->from($this->getFullTableName('setup'))
+            ->where('version_from IS NULL')
+            ->where('is_completed = ?', 1)
+            ->query()
+            ->fetch();
 
-        return count($setupRows) > 0;
+        return $setupRow !== false;
     }
 
     private function checkPreconditions()
     {
         $maxSetupVersion = $this->activeRecordFactory->getObject('Setup')
             ->getResource()
-            ->getMaxCompletedItem()
-            ->getVersionTo();
+            ->getMaxCompletedItem();
+
+        $maxSetupVersion && $maxSetupVersion = $maxSetupVersion->getVersionTo();
 
         if (!is_null($maxSetupVersion) && $maxSetupVersion != $this->getMagentoResourceVersion()) {
             $this->setMagentoResourceVersion($maxSetupVersion);
@@ -211,11 +217,10 @@ class UpgradeData implements UpgradeDataInterface
         $resultVersions = [];
 
         // we must execute last failed upgrade first
-        if ($this->isAllowedRollbackFromBackup()) {
+        if ($this->isAllowedRollbackFromBackup() && ($notCompletedUpgrades = $this->getNotCompletedUpgrades())) {
             /** @var Setup[] $notCompletedUpgrades */
-            $notCompletedUpgrades = $this->getNotCompletedUpgrades();
-            $notCompletedUpgrade  = reset($notCompletedUpgrades);
 
+            $notCompletedUpgrade = reset($notCompletedUpgrades);
             $resultVersions[$notCompletedUpgrade->getVersionFrom()] = $notCompletedUpgrade->getVersionTo();
         }
 

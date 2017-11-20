@@ -21,6 +21,7 @@ class Builder extends AbstractModel
     const UPDATE_COMPLETED_SHIPPING = 'completed_shipping';
     const UPDATE_BUYER_MESSAGE      = 'buyer_message';
     const UPDATE_PAYMENT_DATA       = 'payment_data';
+    const UPDATE_SHIPPING_TAX_DATA  = 'shipping_tax_data';
     const UPDATE_EMAIL              = 'email';
 
     //########################################
@@ -428,9 +429,9 @@ class Builder extends AbstractModel
     {
         $this->prepareShippingAddress();
 
-        $this->setData('tax_details', json_encode($this->getData('tax_details')));
-        $this->setData('shipping_details', json_encode($this->getData('shipping_details')));
-        $this->setData('payment_details', json_encode($this->getData('payment_details')));
+        $this->setData('tax_details', $this->getHelper('Data')->jsonEncode($this->getData('tax_details')));
+        $this->setData('shipping_details', $this->getHelper('Data')->jsonEncode($this->getData('shipping_details')));
+        $this->setData('payment_details', $this->getHelper('Data')->jsonEncode($this->getData('payment_details')));
 
         $this->order->addData($this->getData());
         $this->order->save();
@@ -509,6 +510,7 @@ class Builder extends AbstractModel
         $log = $this->activeRecordFactory->getObject('Order\Log');
         $log->setComponentMode(\Ess\M2ePro\Helper\Component\Ebay::NICK);
 
+        /** @var \Ess\M2ePro\Model\Order $order */
         foreach ($this->relatedOrders as $order) {
             if ($order->canCancelMagentoOrder()) {
                 $description = 'Magento Order #%order_id% should be canceled '.
@@ -516,10 +518,10 @@ class Builder extends AbstractModel
                 $description = $this->getHelper('Module\Log')->encodeDescription(
                     $description, array(
                     '!order_id' => $order->getMagentoOrder()->getRealOrderId(),
-                    '!new_id' => $this->order->getData('ebay_order_id')
+                    '!new_id' => $this->order->getChildObject()->getEbayOrderId()
                 ));
 
-                $log->addMessage(null, $description, \Ess\M2ePro\Model\Log\AbstractModel::TYPE_WARNING);
+                $log->addMessage($order->getId(), $description, \Ess\M2ePro\Model\Log\AbstractModel::TYPE_WARNING);
 
                 try {
                     $order->cancelMagentoOrder();
@@ -530,17 +532,16 @@ class Builder extends AbstractModel
                 $order->getReserve()->release();
             }
 
-            $orderId = $order->getData('ebay_order_id');
-            $order->delete();
-
             $description = 'eBay Order #%old_id% was deleted as new combined eBay order #%new_id% was created.';
             $description = $this->getHelper('Module\Log')->encodeDescription(
                 $description, array(
-                '!old_id' => $orderId,
-                '!new_id' => $this->order->getData('ebay_order_id')
+                '!old_id' => $order->getChildObject()->getEbayOrderId(),
+                '!new_id' => $this->order->getChildObject()->getEbayOrderId()
             ));
 
-            $log->addMessage(null, $description, \Ess\M2ePro\Model\Log\AbstractModel::TYPE_WARNING);
+            $log->addMessage($order->getId(), $description, \Ess\M2ePro\Model\Log\AbstractModel::TYPE_WARNING);
+
+            $order->delete();
         }
     }
 
@@ -563,6 +564,9 @@ class Builder extends AbstractModel
         }
         if ($this->hasUpdatedPaymentData()) {
             $this->updates[] = self::UPDATE_PAYMENT_DATA;
+        }
+        if ($this->hasUpdatedShippingTaxData()) {
+            $this->updates[] = self::UPDATE_SHIPPING_TAX_DATA;
         }
         if ($this->hasUpdatedCompletedShipping()) {
             $this->updates[] = self::UPDATE_COMPLETED_SHIPPING;
@@ -643,6 +647,34 @@ class Builder extends AbstractModel
 
     // ---------------------------------------
 
+    private function hasUpdatedShippingTaxData()
+    {
+        if (!$this->isUpdated()) {
+            return false;
+        }
+
+        /** @var $ebayOrder \Ess\M2ePro\Model\Ebay\Order */
+        $ebayOrder = $this->order->getChildObject();
+        $shippingDetails = $this->getData('shipping_details');
+        $taxDetails      = $this->getData('tax_details');
+
+        if (!empty($shippingDetails['price']) && $shippingDetails['price'] != $ebayOrder->getShippingPrice() ||
+            !empty($shippingDetails['service']) && $shippingDetails['service'] != $ebayOrder->getShippingService())
+        {
+            return true;
+        }
+
+        if ((!empty($taxDetails['rate']) && $taxDetails['rate'] != $ebayOrder->getTaxRate()) ||
+            (!empty($taxDetails['amount']) && $taxDetails['amount'] != $ebayOrder->getTaxAmount()))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    // ---------------------------------------
+
     private function hasUpdatedEmail()
     {
         if (!$this->isUpdated()) {
@@ -690,6 +722,13 @@ class Builder extends AbstractModel
         if ($this->hasUpdate(self::UPDATE_COMPLETED_SHIPPING)) {
             $this->order->addSuccessLog('Shipping status was updated to Shipped on eBay.');
             $this->order->setStatusUpdateRequired(true);
+        }
+
+        if ($this->hasUpdate(self::UPDATE_SHIPPING_TAX_DATA) && $this->order->getMagentoOrderId()) {
+
+            $message  = 'Attention! Shipping/Tax details have been modified on the channel.';
+            $message .= 'Magento order is already created and cannot be updated to reflect these changes.';
+            $this->order->addWarningLog($message);
         }
     }
 

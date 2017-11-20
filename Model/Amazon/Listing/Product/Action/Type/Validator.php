@@ -252,10 +252,11 @@ abstract class Validator extends \Ess\M2ePro\Model\AbstractModel
         $qty = $this->getQty();
         if ($qty <= 0) {
 
-            // M2ePro\TRANSLATIONS
-            // The Quantity must be greater than 0. Please, check the Selling Format Policy and Product Settings.
+// M2ePro\TRANSLATIONS
+// The Quantity must be greater than 0. Please, check the Price, Quantity and Format Policy and Product Settings.
             $this->addMessage(
-                'The Quantity must be greater than 0. Please, check the Selling Format Policy and Product Settings.'
+                'The Quantity must be greater than 0. Please, check the Price, Quantity and
+                Format Policy and Product Settings.'
             );
 
             return false;
@@ -266,18 +267,30 @@ abstract class Validator extends \Ess\M2ePro\Model\AbstractModel
         return true;
     }
 
-    protected function validatePrice()
+    protected function validateRegularPrice()
     {
-        if (!$this->getConfigurator()->isPriceAllowed()) {
+        if (!$this->getConfigurator()->isRegularPriceAllowed()) {
+            return true;
+        }
+
+        if (!$this->getAmazonListingProduct()->isAllowedForRegularCustomers()) {
+            $this->getConfigurator()->disallowRegularPrice();
+
+            if ($this->getAmazonListingProduct()->getOnlineRegularPrice()) {
+                $this->addMessage(
+                    'B2C Price can not be disabled by Revise/Relist action due to Amazon restrictions.
+                    Both B2C and B2B Price values will be available on the Channel.',
+                    \Ess\M2ePro\Model\Connector\Connection\Response\Message::TYPE_WARNING);
+            }
+
             return true;
         }
 
         if ($this->getHelper('Component\Amazon\Repricing')->isEnabled() &&
-            $this->getAmazonListingProduct()->isRepricing() &&
-            !$this->getAmazonListingProduct()->isRepricingDisabled()
+            $this->getAmazonListingProduct()->isRepricingEnabled()
         ) {
 
-            $this->getConfigurator()->disallowPrice();
+            $this->getConfigurator()->disallowRegularPrice();
 
             $this->addMessage(
                 'This product is used by Amazon Repricing Tool.
@@ -288,19 +301,57 @@ abstract class Validator extends \Ess\M2ePro\Model\AbstractModel
             return true;
         }
 
-        $price = $this->getPrice();
-        if ($price <= 0) {
+        $regularPrice = $this->getPrice();
+        if ($regularPrice <= 0) {
 
             // M2ePro\TRANSLATIONS
-            // The Price must be greater than 0. Please, check the Selling Format Policy and Product Settings.
+            // The Price must be greater than 0. Please, check the Price, Quantity and Format Policy and Product Settings.
             $this->addMessage(
-                'The Price must be greater than 0. Please, check the Selling Format Policy and Product Settings.'
+                'The Price must be greater than 0. Please, check the Price, Quantity and
+                Format Policy and Product Settings.'
             );
 
             return false;
         }
 
-        $this->setData('price', $price);
+        $this->setData('regular_price', $regularPrice);
+
+        return true;
+    }
+
+    protected function validateBusinessPrice()
+    {
+        if (!$this->getConfigurator()->isBusinessPriceAllowed()) {
+            return true;
+        }
+
+        if (!$this->getAmazonListingProduct()->isAllowedForBusinessCustomers()) {
+            $this->getConfigurator()->disallowBusinessPrice();
+
+            if ($this->getAmazonListingProduct()->getOnlineBusinessPrice()) {
+                $this->addMessage(
+                    'B2B Price can not be disabled by Revise/Relist action due to Amazon restrictions.
+                    Both B2B and B2C Price values will be available on the Channel.',
+                    \Ess\M2ePro\Model\Connector\Connection\Response\Message::TYPE_WARNING);
+            }
+
+            return true;
+        }
+
+        $businessPrice = $this->getBusinessPrice();
+        if ($businessPrice <= 0) {
+
+            // M2ePro_TRANSLATIONS
+            // The Price must be greater than 0. Please, check the Selling Format Policy and Product Settings.
+            $this->addMessage(
+                'The Business Price must be greater than 0.
+                Please, check the Selling Format Policy and Product Settings.'
+            );
+
+            return false;
+        }
+
+        $this->setData('business_price', $businessPrice);
 
         return true;
     }
@@ -392,11 +443,20 @@ abstract class Validator extends \Ess\M2ePro\Model\AbstractModel
 
     protected function getPrice()
     {
-        if (isset($this->getData()['price'])) {
-            return $this->getData('price');
+        if (isset($this->getData()['regular_price'])) {
+            return $this->getData('regular_price');
         }
 
-        return $this->getAmazonListingProduct()->getPrice();
+        return $this->getAmazonListingProduct()->getRegularPrice();
+    }
+
+    protected function getBusinessPrice()
+    {
+        if (isset($this->getData()['business_price'])) {
+            return $this->getData('business_price');
+        }
+
+        return $this->getAmazonListingProduct()->getBusinessPrice();
     }
 
     protected function getQty()

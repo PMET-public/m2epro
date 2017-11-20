@@ -8,7 +8,7 @@
 
 namespace Ess\M2ePro\Model\Ebay\Synchronization\Orders;
 
-final class Cancellation extends AbstractModel
+class Cancellation extends AbstractModel
 {
     private $orderHelper;
 
@@ -193,7 +193,7 @@ final class Cancellation extends AbstractModel
         }
 
         $dispatcherObj = $this->modelFactory->getObject('Ebay\Connector\Dispatcher');
-        $connectorObj = $dispatcherObj->getVirtualConnector('sales', 'get', 'orders',
+        $connectorObj = $dispatcherObj->getVirtualConnector('orders', 'get', 'orders',
                                                             array('orders_ids' => $ordersIds),
                                                             NULL, NULL, $account);
 
@@ -250,7 +250,7 @@ final class Cancellation extends AbstractModel
         /** @var $order \Ess\M2ePro\Model\Order */
         $order = $this->ebayFactory->getObject('Order')->getCollection()
             ->addFieldToFilter('account_id', $account->getId())
-            ->addFieldToFilter('ebay_order_id', $orderData['ebay_order_id'])
+            ->addFieldToFilter('ebay_order_id', $orderData['identifiers']['ebay_order_id'])
             ->getFirstItem();
 
         if (!$order->getId()) {
@@ -271,7 +271,7 @@ final class Cancellation extends AbstractModel
                 $paymentDetails['method'], $order->getMarketplaceId()
             );
 
-            $order->setData('payment_details', json_encode($paymentDetails));
+            $order->setData('payment_details', $this->getHelper('Data')->jsonEncode($paymentDetails));
             $order->setData('payment_status', $paymentStatus);
         }
 
@@ -285,9 +285,9 @@ final class Cancellation extends AbstractModel
                 $shippingDetails['service'], $order->getMarketplaceId()
             );
 
-            $order->setData('shipping_details', json_encode($shippingDetails));
+            $order->setData('shipping_details', $this->getHelper('Data')->jsonEncode($shippingDetails));
             $order->setData('shipping_status', $shippingStatus);
-            $order->setData('tax_details', json_encode($orderData['tax_details']));
+            $order->setData('tax_details', $this->getHelper('Data')->jsonEncode($orderData['selling']['tax_details']));
         }
 
         $order->save();
@@ -409,7 +409,7 @@ final class Cancellation extends AbstractModel
 
     private function getCheckoutStatus($orderData)
     {
-        return $this->orderHelper->getCheckoutStatus($orderData['checkout_status']);
+        return $this->orderHelper->getCheckoutStatus($orderData['statuses']['checkout']);
     }
 
     private function getPaymentStatus($orderData)

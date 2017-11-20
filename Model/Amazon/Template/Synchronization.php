@@ -6,12 +6,12 @@
  * @license    Commercial use is forbidden
  */
 
+namespace Ess\M2ePro\Model\Amazon\Template;
+
 /**
  * @method \Ess\M2ePro\Model\Template\Synchronization getParentObject()
  * @method \Ess\M2ePro\Model\ResourceModel\Amazon\Template\Synchronization getResource()
  */
-namespace Ess\M2ePro\Model\Amazon\Template;
-
 class Synchronization extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\AbstractModel
 {
     const LIST_MODE_NONE = 0;
@@ -53,8 +53,11 @@ class Synchronization extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ama
     const REVISE_CHANGE_DESCRIPTION_TEMPLATE_NONE = 0;
     const REVISE_CHANGE_DESCRIPTION_TEMPLATE_YES  = 1;
 
-    const REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_NONE = 0;
-    const REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_YES  = 1;
+    const REVISE_CHANGE_SHIPPING_TEMPLATE_NONE = 0;
+    const REVISE_CHANGE_SHIPPING_TEMPLATE_YES  = 1;
+
+    const REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_NONE = 0;
+    const REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_YES  = 1;
 
     const RELIST_FILTER_USER_LOCK_NONE = 0;
     const RELIST_FILTER_USER_LOCK_YES  = 1;
@@ -306,10 +309,21 @@ class Synchronization extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ama
     /**
      * @return bool
      */
-    public function isReviseShippingOverrideTemplate()
+    public function isReviseShippingTemplate()
     {
-        return $this->getData('revise_change_shipping_override_template') !=
-            self::REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_NONE;
+        return $this->getData('revise_change_shipping_template') !=
+            self::REVISE_CHANGE_SHIPPING_TEMPLATE_NONE;
+    }
+
+    // ---------------------------------------
+
+    /**
+     * @return bool
+     */
+    public function isReviseProductTaxCodeTemplate()
+    {
+        return $this->getData('revise_change_product_tax_code_template') !=
+            self::REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_NONE;
     }
 
     // ---------------------------------------
@@ -596,6 +610,11 @@ class Synchronization extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ama
     public function isCacheEnabled()
     {
         return true;
+    }
+
+    public function getCacheGroupTags()
+    {
+        return array_merge(parent::getCacheGroupTags(), ['template']);
     }
 
     //########################################

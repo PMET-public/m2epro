@@ -9,7 +9,7 @@ abstract class MigrationFromMagento1 extends Wizard
     protected function init()
     {
         $this->getResultPage()->getConfig()->getTitle()->prepend(
-            $this->__('Migration from Magento v1.x')
+            $this->__('M2E Pro Module Migration from Magento v1.x')
         );
     }
 
@@ -33,13 +33,7 @@ abstract class MigrationFromMagento1 extends Wizard
 
     protected function getCustomViewNick()
     {
-        $referrer = $this->getRequest()->getParam('referrer');
-
-        if (!is_null($referrer)) {
-            return $referrer;
-        }
-
-        return '*';
+        return $this->getRequest()->getParam('referrer', NULL);
     }
 
     protected function getMenuRootNodeNick()

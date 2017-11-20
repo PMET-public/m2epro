@@ -8,6 +8,9 @@
 
 namespace Ess\M2ePro\Model\ResourceModel\ActiveRecord\Collection;
 
+use Magento\Catalog\Api\Data\CategoryAttributeInterface;
+use Magento\Catalog\Api\Data\ProductAttributeInterface;
+
 abstract class AbstractModel extends \Magento\Framework\Model\ResourceModel\Db\Collection\AbstractCollection
 {
     protected $helperFactory;
@@ -54,6 +57,41 @@ abstract class AbstractModel extends \Magento\Framework\Model\ResourceModel\Db\C
     protected function getHelper($helperName, array $arguments = [])
     {
         return $this->helperFactory->getObject($helperName, $arguments);
+    }
+
+    //########################################
+
+    public function joinLeft($name, $cond, $cols = '*', $schema = null)
+    {
+        $cond = $this->replaceJoinCondition($name, $cond);
+        $this->getSelect()->joinLeft($name, $cond, $cols, $schema);
+    }
+
+    public function joinInner($name, $cond, $cols = '*', $schema = null)
+    {
+        $cond = $this->replaceJoinCondition($name, $cond);
+        $this->getSelect()->joinInner($name, $cond, $cols, $schema);
+    }
+
+    /**
+     * Compatibility with Magento Enterprise (Staging modules) - entity_id column issue
+     */
+    private function replaceJoinCondition($table, $cond)
+    {
+        /** @var \Ess\M2ePro\Helper\Magento\Staging $helper */
+        $helper = $this->getHelper('Magento\Staging');
+
+        if ($helper->isInstalled() && $helper->isStagedTable($table) &&
+            strpos($cond, 'entity_id') !== false) {
+
+            $linkField = $helper->isStagedTable($table, ProductAttributeInterface::ENTITY_TYPE_CODE)
+                ? $helper->getTableLinkField(ProductAttributeInterface::ENTITY_TYPE_CODE)
+                : $helper->getTableLinkField(CategoryAttributeInterface::ENTITY_TYPE_CODE);
+
+            $cond = str_replace('entity_id', $linkField, $cond);
+        }
+
+        return $cond;
     }
 
     //########################################

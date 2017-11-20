@@ -8,7 +8,7 @@
 
 namespace Ess\M2ePro\Model\Amazon\Synchronization\Marketplaces;
 
-final class Details extends AbstractModel
+class Details extends AbstractModel
 {
     //########################################
 
@@ -101,7 +101,8 @@ final class Details extends AbstractModel
             'marketplace_id' => $marketplace->getId(),
             'client_details_last_update_date' => isset($details['last_update']) ? $details['last_update'] : NULL,
             'server_details_last_update_date' => isset($details['last_update']) ? $details['last_update'] : NULL,
-            'product_data'   => isset($details['product_data']) ? json_encode($details['product_data']) : NULL,
+            'product_data'   =>
+                isset($details['product_data']) ? $this->getHelper('Data')->jsonEncode($details['product_data']) : NULL,
         );
 
         $connection->insert($tableMarketplaces, $data);

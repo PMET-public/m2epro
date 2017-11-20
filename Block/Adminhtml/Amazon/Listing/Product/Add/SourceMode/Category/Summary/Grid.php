@@ -6,8 +6,6 @@
  * @license    Commercial use is forbidden
  */
 
-// TODO refactor - make base block
-
 namespace Ess\M2ePro\Block\Adminhtml\Amazon\Listing\Product\Add\SourceMode\Category\Summary;
 
 class Grid extends \Ess\M2ePro\Block\Adminhtml\Category\Grid
@@ -59,7 +57,7 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Category\Grid
 
     protected function _prepareCollection()
     {
-        $collection = $this->categoryFactory->create()->getCollection();
+        $collection = $this->categoryCollectionFactory->create();
         $collection->addAttributeToSelect('name');
 
         $dbSelect = $collection->getConnection()

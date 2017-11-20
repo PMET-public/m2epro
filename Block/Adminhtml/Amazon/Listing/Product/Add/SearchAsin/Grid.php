@@ -107,8 +107,8 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractGrid
                 'variation_child_statuses'       => 'variation_child_statuses',
                 'amazon_sku'                     => 'sku',
                 'online_qty'                     => 'online_qty',
-                'online_price'                   => 'online_price',
-                'online_sale_price'              => 'online_sale_price',
+                'online_regular_price'           => 'online_regular_price',
+                'online_regular_sale_price'      => 'online_regular_sale_price',
                 'is_afn_channel'                 => 'is_afn_channel',
                 'is_general_id_owner'            => 'is_general_id_owner',
                 'is_variation_parent'            => 'is_variation_parent',
@@ -251,7 +251,8 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractGrid
 
         $imageResizedUrl = $imageResized->getUrl();
 
-        $imageHtml = $productId.'<div style="margin-top: 5px"><img src="'.$imageResizedUrl.'" /></div>';
+        $imageHtml = $productId.'<div style="margin-top: 5px">'.
+            '<img style="max-width: 100px; max-height: 100px;" src="' .$imageResizedUrl. '" /></div>';
         $withImageHtml = str_replace('>'.$productId.'<','>'.$imageHtml.'<',$withoutImageHtml);
 
         return $withImageHtml;
@@ -358,7 +359,7 @@ HTML;
 
         switch ($searchSettingsStatus) {
             case \Ess\M2ePro\Model\Amazon\Listing\Product::SEARCH_SETTINGS_STATUS_IN_PROGRESS:
-                $searchData = json_decode($row->getData('search_settings_data'), true);
+                $searchData = $this->getHelper('Data')->jsonDecode($row->getData('search_settings_data'));
 
                 $msg = $this->__('In Progress');
                 $tip = $this->__(
@@ -383,7 +384,7 @@ HTML;
 HTML;
             case \Ess\M2ePro\Model\Amazon\Listing\Product::SEARCH_SETTINGS_STATUS_ACTION_REQUIRED:
 
-                $searchData = json_decode($row->getData('search_settings_data'), true);
+                $searchData = $this->getHelper('Data')->jsonDecode($row->getData('search_settings_data'));
 
                 $lpId = $row->getData('id');
 
@@ -416,7 +417,7 @@ HTML;
 HTML;
         }
 
-        $searchInfo = json_decode($row->getData('general_id_search_info'), true);
+        $searchInfo = $this->getHelper('Data')->jsonDecode($row->getData('general_id_search_info'));
 
         $msg = $this->__('Completed');
         $tip = $this->__(
@@ -499,7 +500,7 @@ HTML;
     private function getGeneralIdColumnValueNotEmptyGeneralId($row)
     {
         $generalId = $row->getData('general_id');
-        $marketplaceId = $this->getHelper('Data\GlobalData')->getValue('marketplace_id');
+        $marketplaceId = $this->listing->getMarketplaceId();
 
         $url = $this->getHelper('Component\Amazon')->getItemUrl(
             $generalId,
@@ -509,7 +510,7 @@ HTML;
         $generalIdSearchInfo = $row->getData('general_id_search_info');
 
         if (!empty($generalIdSearchInfo)) {
-            $generalIdSearchInfo = json_decode($generalIdSearchInfo, true);
+            $generalIdSearchInfo = $this->getHelper('Data')->jsonDecode($generalIdSearchInfo);
         }
 
         if (!empty($generalIdSearchInfo['is_set_automatic'])) {

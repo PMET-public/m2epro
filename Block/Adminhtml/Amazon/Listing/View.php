@@ -128,12 +128,22 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
             '\Ess\M2ePro\Block\Adminhtml\Log\Listing\Product\AbstractGrid'
         ));
 
-        $showAutoAction = json_encode((bool)$this->getRequest()->getParam('auto_actions'));
+        $this->jsPhp->addConstants(
+            $this->getHelper('Data')->getClassConstants('\Ess\M2ePro\Model\Amazon\Account')
+        );
+
+        $showAutoAction = $this->getHelper('Data')->jsonEncode((bool)$this->getRequest()->getParam('auto_actions'));
 
         // ---------------------------------------
         $this->jsUrl->addUrls($this->getHelper('Data')->getControllerActions(
             'Amazon\Listing\AutoAction', array('id' => $this->getRequest()->getParam('id'))
         ));
+
+        $path = 'amazon_listing_autoAction/getDescriptionTemplatesList';
+        $this->jsUrl->add($this->getUrl('*/' . $path, [
+            'marketplace_id' => $this->listing->getMarketplaceId(),
+            'is_new_asin_accepted' => 1
+        ]), $path);
 
         $path = 'amazon_log_listing_product/index';
         $this->jsUrl->add($this->getUrl('*/' . $path), $path);
@@ -156,7 +166,6 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
             'runStopProducts' => $this->getUrl('*/amazon_listing/runStopProducts'),
             'runStopAndRemoveProducts' => $this->getUrl('*/amazon_listing/runStopAndRemoveProducts'),
             'runDeleteAndRemoveProducts' => $this->getUrl('*/amazon_listing/runDeleteAndRemoveProducts'),
-            'runRemoveProducts' => $this->getUrl('*/amazon_listing/runRemoveProducts')
         ]);
 
         $this->jsUrl->addUrls($this->getHelper('Data')->getControllerActions('Amazon\Listing\Product'));
@@ -166,11 +175,17 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
             $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Template\Description')
         );
         $this->jsUrl->addUrls(
-            $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Template\ShippingOverride')
+            $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Template\Shipping')
+        );
+        $this->jsUrl->addUrls(
+            $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Template\ProductTaxCode')
         );
         $this->jsUrl->addUrls($this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Variation'));
         $this->jsUrl->addUrls(
             $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Variation\Manage')
+        );
+        $this->jsUrl->addUrls(
+            $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Variation\Vocabulary')
         );
         $this->jsUrl->addUrls(
             $this->getHelper('Data')->getControllerActions('Amazon\Listing\Product\Variation\Individual')
@@ -204,12 +219,14 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
 
         $component = \Ess\M2ePro\Helper\Component\Amazon::NICK;
         $gridId = $this->getChildBlock('grid')->getId();
-        $ignoreListings = json_encode(array($this->listing['id']));
-        $marketplace = json_encode(array_merge(
+        $ignoreListings = $this->getHelper('Data')->jsonEncode(array($this->listing['id']));
+        $marketplace = $this->getHelper('Data')->jsonEncode(array_merge(
             $this->listing->getMarketplace()->getData(),
             $this->listing->getMarketplace()->getChildObject()->getData()
         ));
-        $isNewAsinAvailable = json_encode($this->listing->getMarketplace()->getChildObject()->isNewAsinAvailable());
+        $isNewAsinAvailable = $this->getHelper('Data')->jsonEncode(
+            $this->listing->getMarketplace()->getChildObject()->isNewAsinAvailable()
+        );
 
         $temp = $this->getHelper('Data\Session')->getValue('products_ids_for_list', true);
         $productsIdsForList = empty($temp) ? '' : $temp;
@@ -260,7 +277,9 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
 
         $assignString = $this->__('Assign');
 
+        $templateShippingTemplatePopupTitle = $this->__('Assign Shipping Template Policy');
         $templateShippingOverridePopupTitle = $this->__('Assign Shipping Override Policy');
+        $templateProductTaxCodePopupTitle   = $this->__('Assign Product Tax Code Policy');
 
         $enterProductSearchQueryMessage = $this->__('Please enter Product Title or ASIN/ISBN/UPC/EAN.');
         $autoMapAsinSearchProducts = $this->__('Search %product_title% Product(s) on Amazon.');
@@ -298,7 +317,9 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
             'You must select at least 1 Category.' => $this->__('You must select at least 1 Category.'),
             'Rule with the same Title already exists.' => $this->__('Rule with the same Title already exists.'),
 
+            'Add New Shipping Template Policy' => $this->__('Add New Shipping Template Policy'),
             'Add New Shipping Override Policy' => $this->__('Add New Shipping Override Policy'),
+            'Add New Product Tax Code Policy'  => $this->__('Add New Product Tax Code Policy'),
             'Add New Listing' => $this->__('Add New Listing'),
 
             'Clear Search Results' => $this->__('Clear Search Results'),
@@ -338,6 +359,8 @@ class View extends \Ess\M2ePro\Block\Adminhtml\Magento\Grid\AbstractContainer
             'templateDescriptionPopupTitle' => $templateDescriptionPopupTitle,
 
             'templateShippingOverridePopupTitle' => $templateShippingOverridePopupTitle,
+            'templateShippingTemplatePopupTitle' => $templateShippingTemplatePopupTitle,
+            'templateProductTaxCodePopupTitle'   => $templateProductTaxCodePopupTitle,
 
             'assign' => $assignString,
 

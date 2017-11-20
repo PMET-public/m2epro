@@ -965,7 +965,10 @@ class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
             return;
         }
 
-        $this->setData('user_preferences', json_encode($responseData['user_preferences']))->save();
+        $this->setData(
+            'user_preferences',
+            $this->getHelper('Data')->jsonEncode($responseData['user_preferences'])
+        )->save();
     }
 
     // ---------------------------------------
@@ -989,7 +992,7 @@ class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
 
     public function isPickupStoreEnabled()
     {
-        $additionalData = json_decode($this->getParentObject()->getData('additional_data'), true);
+        $additionalData = $this->getHelper('Data')->jsonDecode($this->getParentObject()->getData('additional_data'));
         return $this->getHelper('Component\Ebay\PickupStore')->isFeatureEnabled() && !empty($additionalData['bopis']);
     }
 
@@ -1166,12 +1169,15 @@ class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Ebay\Abstra
         if (is_null($this->getData('ebay_shipping_discount_profiles'))) {
             $profiles = array();
         } else {
-            $profiles = json_decode($this->getData('ebay_shipping_discount_profiles'), true);
+            $profiles = $this->getHelper('Data')->jsonDecode($this->getData('ebay_shipping_discount_profiles'));
         }
 
         $profiles[$marketplaceId] = $data;
 
-        $this->setData('ebay_shipping_discount_profiles', json_encode($profiles))->save();
+        $this->setData(
+            'ebay_shipping_discount_profiles',
+            $this->getHelper('Data')->jsonEncode($profiles)
+        )->save();
     }
 
     //########################################

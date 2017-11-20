@@ -18,7 +18,7 @@ class SynchCheckProcessingNow extends Settings
     {
         $warningMessages = array();
 
-        $Processing = $this->activeRecordFactory->getObject('LockItem')->getCollection()
+        $Processing = $this->activeRecordFactory->getObject('Lock\Item')->getCollection()
             ->addFieldToFilter('nick', array('like' => 'synchronization_amazon%'))
             ->getSize();
 
@@ -28,9 +28,9 @@ class SynchCheckProcessingNow extends Settings
             );
         }
 
-        $this->setAjaxContent(json_encode(array(
+        $this->setJsonContent(array(
             'messages' => $warningMessages
-        ), false));
+        ));
 
         return $this->getResponse();
     }

@@ -11,6 +11,11 @@ namespace Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request;
 class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\AbstractModel
 {
     /**
+     * @var \Ess\M2ePro\Model\Amazon\Template\ShippingTemplate
+     */
+    private $shippingTemplateTemplate = NULL;
+
+    /**
      * @var \Ess\M2ePro\Model\Amazon\Template\Description
      */
     private $descriptionTemplate = NULL;
@@ -46,6 +51,12 @@ class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\Ab
             );
         }
 
+        if ($this->getConfigurator()->isShippingTemplateAllowed()) {
+            $data = array_merge($data, $this->getShippingData());
+        }
+
+        $data = array_merge($data, $this->getTaxCodeData());
+
         $isUseDescriptionTemplate = false;
 
         do {
@@ -58,7 +69,8 @@ class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\Ab
 
             if (($variationManager->isRelationChildType() || $variationManager->isIndividualType()) &&
                 ($this->getMagentoProduct()->isSimpleTypeWithCustomOptions() ||
-                 $this->getMagentoProduct()->isBundleType())) {
+                 $this->getMagentoProduct()->isBundleType()||
+                 $this->getMagentoProduct()->isDownloadableTypeWithSeparatedLinks())) {
                 break;
             }
 
@@ -104,14 +116,19 @@ class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\Ab
      */
     private function getConditionData()
     {
-        $this->searchNotFoundAttributes();
-        $conditionNote = $this->getAmazonListingProduct()->getListingSource()->getConditionNote();
-        $this->processNotFoundAttributes('Condition Note');
+        $condition = array();
 
-        return array(
-            'condition'      => $this->getAmazonListingProduct()->getListingSource()->getCondition(),
-            'condition_note' => $conditionNote,
-        );
+        $this->searchNotFoundAttributes();
+        $condition['condition'] = $this->getAmazonListingProduct()->getListingSource()->getCondition();
+        $this->processNotFoundAttributes('Condition');
+
+        if ($condition['condition'] != \Ess\M2ePro\Model\Amazon\Listing::CONDITION_NEW) {
+            $this->searchNotFoundAttributes();
+            $condition['condition_note'] = $this->getAmazonListingProduct()->getListingSource()->getConditionNote();
+            $this->processNotFoundAttributes('Condition Note');
+        }
+
+        return $condition;
     }
 
     /**
@@ -282,8 +299,8 @@ class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\Ab
                 continue;
             }
 
-            $data = $this->getHelper('Data')->arrayReplaceRecursive(
-                $data, json_decode($source->getPath(), true)
+            $data = array_replace_recursive(
+                $data, $this->getHelper('Data')->jsonDecode($source->getPath())
             );
         }
 
@@ -293,6 +310,52 @@ class Details extends \Ess\M2ePro\Model\Amazon\Listing\Product\Action\Request\Ab
             'product_data'      => $data,
             'product_data_nick' => $this->getDescriptionTemplate()->getProductDataNick(),
         );
+    }
+
+    /**
+     * @return array
+     */
+    private function getShippingData()
+    {
+        if (!$this->getAmazonListingProduct()->getAmazonAccount()->isShippingModeTemplate()) {
+            return array();
+        }
+
+        if (!$this->getAmazonListingProduct()->isExistShippingTemplateTemplate()) {
+            return array();
+        }
+
+        $data = array();
+        $data['shipping_data']['template_name'] = $this->getAmazonListingProduct()
+                                                       ->getShippingTemplateSource()->getTemplateName();
+
+        return $data;
+    }
+
+    /**
+     * @return array
+     */
+    private function getTaxCodeData()
+    {
+        if (!$this->getAmazonMarketplace()->isProductTaxCodePolicyAvailable() ||
+            !$this->getAmazonAccount()->isVatCalculationServiceEnabled()
+        ) {
+            return array();
+        }
+
+        if (!$this->getAmazonListingProduct()->isExistProductTaxCodeTemplate()) {
+            return array();
+        }
+
+        $data = array();
+
+        $this->searchNotFoundAttributes();
+
+        $data['tax_code'] = $this->getAmazonListingProduct()->getProductTaxCodeTemplateSource()->getProductTaxCode();
+
+        $this->processNotFoundAttributes('Product Tax Code');
+
+        return $data;
     }
 
     //########################################

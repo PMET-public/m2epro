@@ -14,6 +14,7 @@ class After extends AbstractAddUpdate
 {
     private $eavConfig;
     private $storeManager;
+    private $objectManager;
     private $attributeAffectOnStoreIdCache = array();
 
     //########################################
@@ -24,11 +25,13 @@ class After extends AbstractAddUpdate
         \Magento\Catalog\Model\ProductFactory $productFactory,
         \Ess\M2ePro\Helper\Factory $helperFactory,
         \Ess\M2ePro\Model\ActiveRecord\Factory $activeRecordFactory,
-        \Ess\M2ePro\Model\Factory $modelFactory
+        \Ess\M2ePro\Model\Factory $modelFactory,
+        \Magento\Framework\ObjectManagerInterface $objectManager
     )
     {
         $this->eavConfig = $eavConfig;
         $this->storeManager = $storeManager;
+        $this->objectManager = $objectManager;
         parent::__construct($productFactory, $helperFactory, $activeRecordFactory, $modelFactory);
     }
 
@@ -70,6 +73,7 @@ class After extends AbstractAddUpdate
                 $this->performSpecialPriceChanges();
                 $this->performSpecialPriceFromDateChanges();
                 $this->performSpecialPriceToDateChanges();
+                $this->performTierPriceChanges();
 
                 $this->performTrackingAttributesChanges();
                 $this->updateListingsProductsVariations();
@@ -97,20 +101,24 @@ class After extends AbstractAddUpdate
             return;
         }
 
-        $this->activeRecordFactory->getObject('Listing\Log')->updateProductTitle($this->getProductId(),$name);
+        $this->activeRecordFactory->getObject('Listing\Log')
+            ->getResource()
+            ->updateProductTitle($this->getProductId(), $name);
     }
 
     private function updateListingsProductsVariations()
     {
+        /** @var \Ess\M2ePro\Model\Listing\Product\Variation\Updater[] $variationUpdatersByComponent */
         $variationUpdatersByComponent = array();
+
+        /** @var \Ess\M2ePro\Model\Listing\Product[] $listingsProductsForProcess */
+        $listingsProductsForProcess   = array();
 
         foreach ($this->getAffectedListingsProducts() as $listingProduct) {
 
             /** @var \Ess\M2ePro\Model\Listing\Product $listingProduct */
 
-            if (isset($variationUpdatersByComponent[$listingProduct->getComponentMode()])) {
-                $variationUpdaterObject = $variationUpdatersByComponent[$listingProduct->getComponentMode()];
-            } else {
+            if (!isset($variationUpdatersByComponent[$listingProduct->getComponentMode()])) {
                 $variationUpdaterModel = ucwords($listingProduct->getComponentMode())
                                          .'\Listing\Product\Variation\Updater';
                 /** @var \Ess\M2ePro\Model\Listing\Product\Variation\Updater $variationUpdaterObject */
@@ -118,17 +126,43 @@ class After extends AbstractAddUpdate
                 $variationUpdatersByComponent[$listingProduct->getComponentMode()] = $variationUpdaterObject;
             }
 
+            $listingsProductsForProcess[$listingProduct->getId()] = $listingProduct;
+        }
+
+        // for amazon, variation updater must not be called for parent and his children in one time
+        foreach ($listingsProductsForProcess as $listingProduct) {
+            if (!$listingProduct->isComponentModeAmazon()) {
+                continue;
+            }
+
+            /** @var \Ess\M2ePro\Model\Amazon\Listing\Product $amazonListingProduct */
+            $amazonListingProduct = $listingProduct->getChildObject();
+
+            $variationManager = $amazonListingProduct->getVariationManager();
+
+            if ($variationManager->isRelationChildType() &&
+                isset($listingsProductsForProcess[$variationManager->getVariationParentId()])) {
+
+                unset($listingsProductsForProcess[$listingProduct->getId()]);
+            }
+        }
+
+        foreach ($listingsProductsForProcess as $listingProduct) {
             $listingProduct->getMagentoProduct()->enableCache();
-            $variationUpdaterObject->process($listingProduct);
+
+            $variationUpdater = $variationUpdatersByComponent[$listingProduct->getComponentMode()];
+            $variationUpdater->process($listingProduct);
         }
 
         foreach ($variationUpdatersByComponent as $variationUpdater) {
-            /** @var \Ess\M2ePro\Model\Listing\Product\Variation\Updater $variationUpdater */
             $variationUpdater->afterMassProcessEvent();
         }
 
-        foreach ($this->getAffectedListingsProducts() as $listingProduct) {
-            /** @var \Ess\M2ePro\Model\Listing\Product $listingProduct */
+        foreach ($listingsProductsForProcess as $listingProduct) {
+            if ($listingProduct->isDeleted()) {
+                continue;
+            }
+
             $listingProduct->getMagentoProduct()->disableCache();
         }
     }
@@ -263,6 +297,33 @@ class After extends AbstractAddUpdate
             $this->logListingProductMessage(
                 $listingProduct,
                 \Ess\M2ePro\Model\Listing\Log::ACTION_CHANGE_PRODUCT_SPECIAL_PRICE_TO_DATE,
+                $oldValue, $newValue
+            );
+        }
+    }
+
+    private function performTierPriceChanges()
+    {
+        $oldValue = $this->getProxy()->getData('tier_price');
+        $newValue = $this->getProduct()->getTierPrice();
+
+        if ($oldValue == $newValue) {
+            return;
+        }
+
+        // M2ePro_TRANSLATIONS
+        // None
+
+        $oldValue = $this->convertTierPriceForLog($oldValue);
+        $newValue = $this->convertTierPriceForLog($newValue);
+
+        foreach ($this->getAffectedListingsProducts() as $listingProduct) {
+
+            /** @var \Ess\M2ePro\Model\Listing\Product $listingProduct */
+
+            $this->logListingProductMessage(
+                $listingProduct,
+                \Ess\M2ePro\Model\Listing\Log::ACTION_CHANGE_PRODUCT_TIER_PRICE,
                 $oldValue, $newValue
             );
         }
@@ -404,8 +465,7 @@ class After extends AbstractAddUpdate
 
     protected function isAddingProductProcess()
     {
-        return ($this->getProxy()->getProductId() <= 0 && $this->getProductId() > 0) ||
-               (string)$this->getEvent()->getProduct()->getOrigData('sku') == '';
+        return $this->getProxy()->getProductId() <= 0 && $this->getProductId() > 0;
     }
 
     // ---------------------------------------
@@ -417,7 +477,7 @@ class After extends AbstractAddUpdate
             return true;
         }
 
-        $key = $this->getProduct()->getSku();
+        $key = $this->getEvent()->getProduct()->getData('before_event_key');
         return isset(\Ess\M2ePro\Observer\Product\AddUpdate\Before::$proxyStorage[$key]);
     }
 
@@ -437,7 +497,7 @@ class After extends AbstractAddUpdate
             return \Ess\M2ePro\Observer\Product\AddUpdate\Before::$proxyStorage[$key];
         }
 
-        $key = $this->getProduct()->getSku();
+        $key = $this->getEvent()->getProduct()->getData('before_event_key');
         return \Ess\M2ePro\Observer\Product\AddUpdate\Before::$proxyStorage[$key];
     }
 
@@ -483,7 +543,14 @@ class After extends AbstractAddUpdate
             $product->setStoreId($onStoreId);
             $product->load($this->getProductId());
 
-            return $this->attributeAffectOnStoreIdCache[$cacheKey] = !$product->getExistsStoreValueFlag($attributeCode);
+            $scopeOverridden = $this->objectManager->create('Magento\Catalog\Model\Attribute\ScopeOverriddenValue');
+            $isExistsValueForStore = $scopeOverridden->containsValue(
+                \Magento\Catalog\Api\Data\ProductInterface::class,
+                $product,
+                $attributeCode,
+                $onStoreId
+            );
+            return $this->attributeAffectOnStoreIdCache[$cacheKey] = !$isExistsValueForStore;
         }
 
         if ($attributeScope == \Magento\Catalog\Model\ResourceModel\Eav\Attribute::SCOPE_STORE) {
@@ -510,6 +577,25 @@ class After extends AbstractAddUpdate
         }
 
         return $result;
+    }
+
+    //########################################
+
+    private function convertTierPriceForLog($tierPrice)
+    {
+        if (empty($tierPrice) || !is_array($tierPrice)) {
+            return 'None';
+        }
+
+        $result = [];
+        foreach ($tierPrice as $tierPriceData) {
+            $result[] = sprintf("[price = %s, qty = %s]",
+                $tierPriceData["website_price"],
+                $tierPriceData["price_qty"]
+            );
+        }
+
+        return implode(",", $result);
     }
 
     //########################################

@@ -82,7 +82,7 @@ class Data extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
         $form->addField('shipping_title', 'hidden',
             [
                 'name' => 'shipping[title]',
-                'value' => $this->getHelper('Data')->escapeHtml($this->getTitle())
+                'value' => $this->getTitle()
             ]
         );
 
@@ -142,7 +142,7 @@ class Data extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
                 'class' => 'required-entry',
                 'create_magento_attribute' => true
             ]
-        );
+        )->addCustomAttribute('allowed_attribute_types', 'text,select');
 
         // ---------------------------------------
 
@@ -284,6 +284,14 @@ class Data extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
         }
 
         // ---------------------------------------
+
+        $fieldSet->addField('shipping_local_table_messages',
+            self::CUSTOM_CONTAINER,
+            [
+                'text' => '',
+                'css_class' => 'm2epro-fieldset-table no-margin-bottom'
+            ]
+        );
 
         $fieldSet->addField('local_shipping_methods_tr_wrapper', self::CUSTOM_CONTAINER,
             [
@@ -528,6 +536,14 @@ class Data extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
         }
 
         // ---------------------------------------
+
+        $fieldSet->addField('shipping_international_table_messages',
+            self::CUSTOM_CONTAINER,
+            [
+                'text' => '',
+                'css_class' => 'm2epro-fieldset-table no-margin-bottom'
+            ]
+        );
 
         $fieldSet->addField('international_shipping_methods_tr_wrapper',
             self::CUSTOM_CONTAINER,
@@ -854,7 +870,7 @@ class Data extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
         $fieldSet->addField('excluded_locations_hidden', 'hidden',
             [
                 'name' => 'shipping[excluded_locations]',
-                'value' => json_encode($this->formData['excluded_locations'])
+                'value' => $this->getHelper('Data')->jsonEncode($this->formData['excluded_locations'])
             ]
         );
 
@@ -1455,8 +1471,10 @@ HTML;
         $localDiscount = $template->getData('local_shipping_discount_profile_id');
         $internationalDiscount = $template->getData('international_shipping_discount_profile_id');
 
-        !is_null($localDiscount) && $localDiscount = json_decode($localDiscount, true);
-        !is_null($internationalDiscount) && $internationalDiscount = json_decode($internationalDiscount, true);
+        !is_null($localDiscount) && $localDiscount = $this->getHelper('Data')->jsonDecode($localDiscount);
+        !is_null($internationalDiscount) && $internationalDiscount = $this->getHelper('Data')->jsonDecode(
+            $internationalDiscount
+        );
 
         $accountCollection = $this->ebayFactory->getObject('Account')->getCollection();
 
@@ -1479,7 +1497,7 @@ HTML;
                 continue;
             }
 
-            $accountProfiles = json_decode($accountProfiles, true);
+            $accountProfiles = $this->getHelper('Data')->jsonDecode($accountProfiles);
             $marketplaceId = $this->getMarketplace()->getId();
 
             if (is_array($accountProfiles) && isset($accountProfiles[$marketplaceId]['profiles'])) {
@@ -1548,7 +1566,7 @@ HTML;
         }
 
         if (is_string($this->formData['excluded_locations'])) {
-            $excludedLocations = json_decode($this->formData['excluded_locations'],true);
+            $excludedLocations = $this->getHelper('Data')->jsonDecode($this->formData['excluded_locations']);
             $this->formData['excluded_locations'] = is_array($excludedLocations) ? $excludedLocations : array();
         } else {
             unset($this->formData['excluded_locations']);
@@ -1562,7 +1580,7 @@ HTML;
         $default = $this->activeRecordFactory->getObject('Ebay\Template\Shipping')
                                              ->getDefaultSettingsAdvancedMode();
 
-        $default['excluded_locations'] = json_decode($default['excluded_locations'],true);
+        $default['excluded_locations'] = $this->getHelper('Data')->jsonDecode($default['excluded_locations']);
 
         // populate address fields with the data from magento configuration
         // ---------------------------------------
@@ -1728,10 +1746,11 @@ HTML;
                         $ebayId = $category['methods'][$key]['ebay_id'];
                         $title = $category['methods'][$key]['title'];
 
-                        $uniqPart = preg_replace('/\w*'.str_replace(' ', '', $title).'/i', '', $ebayId);
+                        $duplicatedPart = str_replace(' ', '', preg_quote($title, '/'));
+                        $uniqPart = preg_replace('/\w*'.$duplicatedPart.'/i', '', $ebayId);
                         $uniqPart = preg_replace('/([A-Z]+[a-z]*)/', '${1} ', $uniqPart);
 
-                        $category['methods'][$key]['title'] = trim($title) . ' ' . $uniqPart;
+                        $category['methods'][$key]['title'] = trim($title) . ' ' . str_replace('_', '', $uniqPart);
                     }
                 }
             }
@@ -2025,21 +2044,23 @@ HTML;
             $this->getHelper('Data')->getClassConstants('\Ess\M2ePro\Model\Ebay\Template\Shipping\Calculated')
         );
 
-        $missingAttributes = json_encode($this->missingAttributes);
-        $services = json_encode($this->marketplaceData['services']);
-        $locations = json_encode($this->marketplaceData['locations']);
-        $discountProfiles = json_encode($this->getDiscountProfiles());
-        $originCountry = json_encode($this->marketplaceData['origin_country']);
+        $missingAttributes = $this->getHelper('Data')->jsonEncode($this->missingAttributes);
+        $services = $this->getHelper('Data')->jsonEncode($this->marketplaceData['services']);
+        $locations = $this->getHelper('Data')->jsonEncode($this->marketplaceData['locations']);
+        $discountProfiles = $this->getHelper('Data')->jsonEncode($this->getDiscountProfiles());
+        $originCountry = $this->getHelper('Data')->jsonEncode($this->marketplaceData['origin_country']);
 
-        $formDataServices = json_encode($this->formData['services']);
+        $formDataServices = $this->getHelper('Data')->jsonEncode($this->formData['services']);
 
         $this->js->addRequireJs([
             'form' => 'M2ePro/Ebay/Template/Shipping',
             'attr' => 'M2ePro/Attribute',
         ], <<<JS
 
-        window.AttributeObj = new Attribute();
-        AttributeObj.attrData = '{$this->getAttributesJsHtml()}';
+        if (typeof AttributeObj === 'undefined') {
+            window.AttributeObj = new Attribute();
+        }
+        window.AttributeObj.attrData = '{$this->getAttributesJsHtml()}';
 
         window.EbayTemplateShippingObj = new EbayTemplateShipping();
 
@@ -2068,6 +2089,44 @@ HTML;
 JS
         );
         return parent::_toHtml();
+    }
+
+    //########################################
+
+    public function getCurrencyAvailabilityMessage()
+    {
+        $marketplace = $this->getHelper('Data\GlobalData')->getValue('ebay_marketplace');
+        $store       = $this->getHelper('Data\GlobalData')->getValue('ebay_store');
+        $template    = $this->getHelper('Data\GlobalData')->getValue('ebay_template_selling_format');
+
+        if (is_null($template) || is_null($template->getId())) {
+            $templateData = $this->getDefault();
+            $templateData['component_mode'] = \Ess\M2ePro\Helper\Component\Ebay::NICK;
+            $usedAttributes = array();
+        } else {
+            $templateData = $template->getData();
+            $usedAttributes = $template->getUsedAttributes();
+        }
+
+        $messagesBlock = $this
+            ->createBlock('Template\Messages')
+            ->getResultBlock(
+                \Ess\M2ePro\Model\Ebay\Template\Manager::TEMPLATE_SHIPPING,
+                \Ess\M2ePro\Helper\Component\Ebay::NICK
+            );
+
+        $messagesBlock->setData('template_data', $templateData);
+        $messagesBlock->setData('used_attributes', $usedAttributes);
+        $messagesBlock->setData('marketplace_id', $marketplace ? $marketplace->getId() : null);
+        $messagesBlock->setData('store_id', $store ? $store->getId() : null);
+
+        $messages = $messagesBlock->getMessages();
+
+        if (empty($messages)) {
+            return '';
+        }
+
+        return $messagesBlock->getMessagesHtml($messages);
     }
 
     //########################################

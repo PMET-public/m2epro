@@ -10,12 +10,14 @@ namespace Ess\M2ePro\Observer;
 
 class CreditMemo extends AbstractModel
 {
+    protected $amazonFactory;
     protected $urlBuilder;
     protected $messageManager;
 
     //########################################
 
     public function __construct(
+        \Ess\M2ePro\Model\ActiveRecord\Component\Parent\Amazon\Factory $amazonFactory,
         \Magento\Framework\UrlInterface $urlBuilder,
         \Magento\Framework\Message\Manager $messageManager,
         \Ess\M2ePro\Helper\Factory $helperFactory,
@@ -23,6 +25,7 @@ class CreditMemo extends AbstractModel
         \Ess\M2ePro\Model\Factory $modelFactory
     )
     {
+        $this->amazonFactory = $amazonFactory;
         $this->urlBuilder = $urlBuilder;
         $this->messageManager = $messageManager;
         parent::__construct($helperFactory, $activeRecordFactory, $modelFactory);
@@ -86,7 +89,7 @@ class CreditMemo extends AbstractModel
                         continue;
                     }
 
-                    $amazonOrderItemCollection = $this->activeRecordFactory
+                    $amazonOrderItemCollection = $this->amazonFactory
                                                       ->getObject('Order\Item')
                                                       ->getCollection();
                     $amazonOrderItemCollection->addFieldToFilter('amazon_order_item_id', $amazonOrderItemId);
@@ -124,46 +127,13 @@ class CreditMemo extends AbstractModel
                 }
             }
 
-            $result = $amazonOrder->refund($itemsForCancel);
-
-            if ($result) {
-                $this->addSessionSuccessMessage();
-            } else {
-                $this->addSessionErrorMessage($order);
-            }
+            $amazonOrder->refund($itemsForCancel);
 
         } catch (\Exception $exception) {
 
             $this->getHelper('Module\Exception')->process($exception);
 
         }
-    }
-
-    //########################################
-
-    private function addSessionSuccessMessage()
-    {
-        $this->messageManager->addSuccess(
-            $this->getHelper('Module\Translation')->__('Cancel Amazon Order in Progress...')
-        );
-    }
-
-    private function addSessionErrorMessage(\Ess\M2ePro\Model\Order $order)
-    {
-        $url = $this->urlBuilder->getUrl(
-            '*/amazon_log_order/index', array('order_id' => $order->getId())
-        );
-
-        // M2ePro\TRANSLATIONS
-        // Cancel for Amazon Order was not performed. View <a href="%url%" target="_blank" >order log</a> for more details.
-        $message = $this->getHelper('Module\Translation')->__(
-            'Cancel for Amazon Order was not performed.'.
-            ' View <a href="%url% target="_blank" >order log</a>'.
-            ' for more details.',
-            $url
-        );
-
-        $this->messageManager->addError($message);
     }
 
     //########################################

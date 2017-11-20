@@ -193,7 +193,7 @@ HTML
 
         More detailed information about ability to work with this Page you can find
         <a href="%url%" target="_blank" class="external-link">here</a>.',
-                $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/d44VAQ')
+                $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/jAA0AQ')
             )
         ]);
 
@@ -255,10 +255,10 @@ HTML
         ]);
 
         $title = $this->getHelper('Data')->escapeJs($this->getHelper('Data')->escapeHtml($this->formData['title']));
-        $overrideServicesData = json_encode($this->getOverrideDictionaryData());
+        $overrideServicesData = $this->getHelper('Data')->jsonEncode($this->getOverrideDictionaryData());
 
         if ($this->formData['id'] != '') {
-            $rules = json_encode($this->formData['shipping_override_rule']);
+            $rules = $this->getHelper('Data')->jsonEncode($this->formData['shipping_override_rule']);
             $rulesRenderJs = 'AmazonTemplateShippingOverrideObj.renderRules(' . $rules . ')';
         } else {
             $rulesRenderJs = <<<JS
@@ -314,6 +314,8 @@ JS
             /** @var \Ess\M2ePro\Helper\Magento\Attribute $magentoAttributeHelper */
             $magentoAttributeHelper = $this->getHelper('Magento\Attribute');
             $this->attributes = $magentoAttributeHelper->getGeneralFromAllAttributeSets();
+            $this->attributes = $magentoAttributeHelper
+                                    ->filterByInputTypes($this->attributes, array('text', 'select', 'price'));
 
             if ($this->formData['id']) {
                 foreach ($this->formData['shipping_override_rule'] as $rule) {

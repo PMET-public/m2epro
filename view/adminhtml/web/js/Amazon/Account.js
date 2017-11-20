@@ -170,6 +170,12 @@ define([
 
             //$('amazonAccountEditTabs_listingOther').removeClassName('changed');
 
+            if ($('is_vat_calculation_service_enabled')) {
+                $('is_vat_calculation_service_enabled')
+                    .observe('change', AmazonAccountObj.vatCalculationModeChange)
+                    .simulate('change');
+            }
+
             //tab order
             $('magento_orders_listings_mode').observe('change', AmazonAccountObj.magentoOrdersListingsModeChange).simulate('change');
             $('magento_orders_listings_store_mode').observe('change', AmazonAccountObj.magentoOrdersListingsStoreModeChange).simulate('change');
@@ -194,10 +200,17 @@ define([
 
         deleteClick: function()
         {
-            if (!confirm(M2ePro.translator.translate('Be attentive! By Deleting Account you delete all information on it from M2E Pro Server. This will cause inappropriate work of all Accounts\' copies.'))) {
-                return;
-            }
-            setLocation(M2ePro.url.get('deleteAction'));
+            this.confirm({
+                content: M2ePro.translator.translate('Be attentive! By Deleting Account you delete all information on it from M2E Pro Server. This will cause inappropriate work of all Accounts\' copies.'),
+                actions: {
+                    confirm: function () {
+                        setLocation(M2ePro.url.get('deleteAction'));
+                    },
+                    cancel: function () {
+                        return false;
+                    }
+                }
+            });
         },
 
         // ---------------------------------------
@@ -534,6 +547,15 @@ define([
             }
         },
 
+        vatCalculationModeChange: function()
+        {
+            $('is_magento_invoice_creation_disabled_tr').hide();
+
+            if ($('is_vat_calculation_service_enabled').value == 1) {
+                $('is_magento_invoice_creation_disabled_tr').show();
+            }
+        },
+
         // Repricing Integration
         // ---------------------------------------
 
@@ -544,11 +566,16 @@ define([
 
         unlinkRepricing: function()
         {
-            if (!confirm(M2ePro.translator.translate('Are you sure?'))) {
-                return;
-            }
-
-            AmazonAccountObj.openUnlinkPage();
+            this.confirm({
+                actions: {
+                    confirm: function () {
+                        AmazonAccountObj.openUnlinkPage();
+                    },
+                    cancel: function () {
+                        return false;
+                    }
+                }
+            });
         },
 
         openUnlinkPage: function()
@@ -701,11 +728,12 @@ define([
 
         saveAndClose: function()
         {
-            var url = typeof M2ePro.url.urls.formSubmit == 'undefined' ?
-            M2ePro.url.formSubmit + 'back/'+base64_encode('list')+'/' :
-                M2ePro.url.get('formSubmit', {'back': base64_encode('list')});
+            var self = this,
+                url = typeof M2ePro.url.urls.formSubmit == 'undefined' ?
+                    M2ePro.url.formSubmit + 'back/'+base64_encode('list')+'/' :
+                    M2ePro.url.get('formSubmit', {'back': base64_encode('list')});
 
-            if (!this.isValidForm()) {
+            if (!self.isValidForm()) {
                 return;
             }
 
@@ -718,7 +746,8 @@ define([
                     if (transport.success) {
                         window.close();
                     } else {
-                        alert(transport.message);
+                        self.alert(transport.message);
+                        return;
                     }
                 }
             });

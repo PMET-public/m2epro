@@ -143,6 +143,8 @@ class Listing extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Chi
         return $collection;
     }
 
+    //########################################
+
     public function updateMotorsAttributesData($listingId,
                                                array $listingProductIds,
                                                $attribute,
@@ -153,29 +155,29 @@ class Listing extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Chi
         }
 
         $listing = $this->parentFactory->getCachedObjectLoaded(
-            \Ess\M2ePro\Helper\Component\Ebay::NICK,'Listing', $listingId
+            \Ess\M2ePro\Helper\Component\Ebay::NICK, 'Listing', $listingId
         );
         $storeId = (int)$listing->getStoreId();
 
         $listingProductsCollection = $this->activeRecordFactory->getObject('Listing\Product')->getCollection();
-        $listingProductsCollection->addFieldToFilter('id', array('in' => $listingProductIds));
+        $listingProductsCollection->addFieldToFilter('id', ['in' => $listingProductIds]);
         $listingProductsCollection->getSelect()->reset(\Zend_Db_Select::COLUMNS);
-        $listingProductsCollection->getSelect()->columns(array('product_id'));
+        $listingProductsCollection->getSelect()->columns(['product_id']);
 
         $productIds = $listingProductsCollection->getColumnValues('product_id');
 
         if ($overwrite) {
             $this->catalogProductAction->updateAttributes(
                 $productIds,
-                array($attribute => $data),
+                [$attribute => $data],
                 $storeId
             );
             return;
         }
 
-        $productCollection = Mage::getModel('catalog/product')->getCollection();
+        $productCollection = $this->productFactory->create()->getCollection();
         $productCollection->setStoreId($storeId);
-        $productCollection->addFieldToFilter('entity_id', array('in' => $productIds));
+        $productCollection->addFieldToFilter('entity_id', ['in' => $productIds]);
         $productCollection->addAttributeToSelect($attribute);
 
         foreach ($productCollection->getItems() as $itemId => $item) {
@@ -188,8 +190,8 @@ class Listing extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Chi
             }
 
             $this->catalogProductAction->updateAttributes(
-                array($itemId),
-                array($attribute => $newAttributeValue),
+                [$itemId],
+                [$attribute => $newAttributeValue],
                 $storeId
             );
         }

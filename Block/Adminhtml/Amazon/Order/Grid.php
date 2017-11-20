@@ -253,11 +253,24 @@ class Grid extends AbstractGrid
 
         $primeImageHtml = '';
         if ($row->getChildObject()->getData('is_prime')) {
-            $primeImageHtml = '<div><img src="' . $this->getViewFileUrl('Ess_M2ePro::images/prime.png') . '" /></div>';
+
+            $url = $this->getViewFileUrl('Ess_M2ePro::images/prime.png');
+            $primeImageHtml = <<<HTML
+<div style="margin-top: 2px;"><img src="{$url}" /></div>
+HTML;
+        }
+
+        $businessImageHtml = '';
+        if ($row->getChildObject()->getData('is_business')) {
+
+            $url = $this->getViewFileUrl('Ess_M2ePro::images/amazon-business.png');
+            $businessImageHtml = <<<HTML
+<div style="margin-top: 2px;"><img src="{$url}" /></div>
+HTML;
         }
 
         return <<<HTML
-<a href="{$url}" target="_blank">{$orderId}</a> {$primeImageHtml}
+<a href="{$url}" target="_blank">{$orderId}</a> {$primeImageHtml} {$businessImageHtml}
 HTML;
     }
 
@@ -439,13 +452,10 @@ HTML;
         if (
             $row->getChildObject()->getData('is_afn_channel') == Product::IS_AFN_CHANNEL_YES
         ) {
-            $value = $this->__('Amazon');
-            $value .= '<span style="font-weight: bold;">' . $value . '</span>';
-        } else {
-            $value = $this->__('Merchant');
+            return '<span style="font-weight: bold;">' . $this->__('Amazon') . '</span>';
         }
 
-        return $value;
+        return $this->__('Merchant');
     }
 
     public function callbackColumnStatus($value, $row, $column, $isExport)
@@ -533,7 +543,7 @@ HTML;
         $tempGridIds = array();
         $this->getHelper('Component\Amazon')->isEnabled() && $tempGridIds[] = $this->getId();
 
-        $tempGridIds = json_encode($tempGridIds);
+        $tempGridIds = $this->getHelper('Data')->jsonEncode($tempGridIds);
 
         $this->jsPhp->addConstants($this->getHelper('Data')->getClassConstants('\Ess\M2ePro\Model\Log\AbstractModel'));
 

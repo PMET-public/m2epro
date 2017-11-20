@@ -29,8 +29,10 @@ class ReviseRules extends AbstractForm
                     => \Ess\M2ePro\Model\Template\Synchronization::REVISE_CHANGE_SELLING_FORMAT_TEMPLATE_YES,
             'revise_change_description_template'
                     => Synchronization::REVISE_CHANGE_DESCRIPTION_TEMPLATE_NONE,
-            'revise_change_shipping_override_template'
-                    => Synchronization::REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_YES,
+            'revise_change_shipping_template'
+                    => Synchronization::REVISE_CHANGE_SHIPPING_TEMPLATE_YES,
+            'revise_change_product_tax_code_template'
+                    => Synchronization::REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_YES,
             'revise_change_listing'
                     => \Ess\M2ePro\Model\Template\Synchronization::REVISE_CHANGE_LISTING_YES
         );
@@ -45,22 +47,26 @@ class ReviseRules extends AbstractForm
             [
                 'content' => $this->__(
                     <<<HTML
-                    <p>Revise Rules are the Conditions in accordance with which full and partial
-                    automatic Revise of Listings is performed.</p><br>
-                    <p>If a certain Condition is enabled (set to Yes) and satisfied, then Amazon Listings will
-                    be automatically fully or partially updated providing that the current Synchronization Policy
-                    is assigned to the Products in M2E Pro Listing.</p>
-                    <ul>
-                    <li><p><strong>Partial Revise</strong> - if any changes are made to the indicated parameters of
-                    Magento Products, automatic Revise will update only the changed details for the Items listed
-                    on Amazon</p></li>
-                    <li><p><strong>Full Revise</strong> - contains groups of M2E Pro Settings. If any data in
-                    these groups (<i>Selling Format Policy, Listing Settings, Description Policy, etc</i>) is changed,
-                    then Listings, which use these Policies in their Settings, will be automatically
-                    fully Revised.</p></li>
-                    </ul><br>
-                    <p>More detailed information about how to work with this Page you can find
-                    <a href="%url%" target="_blank" class="external-link">here</a>.</p>
+<p>
+Revise Rules are specific conditions that trigger an automatic full or partial Product data revise if met.
+</p>
+
+<ul>
+    <li><p>
+        <strong>Partial Revise</strong> - Amazon Item will be partially updated based on the changes made to
+        certain Magento Product parameter you have enabled in Partial Revise settings.
+    </p></li><br>
+    <li><p>
+        <strong>Full Revise</strong> - Amazon Item will be fully updated after the changes made to at least
+        one parameter of M2E Pro settings you have specified for this Item and enabled in Full Revise
+        settings (Listing Settings, Selling Format Policy, Description Policy, Shipping Policy,
+        Product Tax Code Policy).
+    </p></li>
+</ul>
+
+<p>More detailed information on how to work with this Page you can find
+    <a href="%url%" target="_blank" class="external-link">here</a>.
+</p>
 HTML
                     ,
                     $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/RwItAQ')
@@ -87,8 +93,8 @@ HTML
                     Synchronization::REVISE_UPDATE_QTY_YES => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises Quantity on Amazon Listing(s) when the Quantity or
-                    Attribute for Quantity of a Product is changed in Magento.'
+                    'Automatically revises Item Quantity, Production Time and Restock Date in Amazon Listing
+                    when there are changes made in Magento to at least one mentioned parameter.'
                 )
             ]
         );
@@ -145,8 +151,8 @@ HTML
                     Synchronization::REVISE_UPDATE_PRICE_YES => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises Price on Amazon Listing(s) when the Price or
-                    Attribute for Price of a Product is changed in Magento.'
+                    'Automatically revises Item Price, Minimum Advertised Price, Sale Price and Business Price
+                    in Amazon Listing when there are changes made in Magento to at least one mentioned parameter.'
                 )
             ]
         );
@@ -186,9 +192,9 @@ HTML
                 'values' => $preparedValues,
                 'tooltip' => $this->__('
                     It is a Percent Value of Maximum possible Deviation between Magento Price
-                    (Selling Format Policy settings) and Amazon Item Price, that can be ignored.<br/><br/>
+                    (Price, Quantity and Format Policy settings) and Amazon Item Price, that can be ignored.<br/><br/>
                     <strong>For example</strong>, your Magento Price is 23.25$. According to
-                    Selling Format Policy Settings Item Price is equal to Magento Price.
+                    Price, Quantity and Format Policy Settings Item Price is equal to Magento Price.
                     The "Revise When Deviation More or Equal than" Option is specified to 1%.<br/>
                     1) If Magento Price was changed to 23.26$, possible Deviation Value (0.23$) is
                     <strong>more</strong> than Price change (0.1$), so the Price <strong>will not be Revised</strong>
@@ -219,9 +225,10 @@ HTML
                     Synchronization::REVISE_UPDATE_DETAILS_YES => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises data on Amazon Listing(s)
-                    if there are changes made to the Magento Attributes used for Description or
-                    Condition Note of Listing Settings.'
+                    'Automatically revises Condition Note, Gift Message, Gift Wrap settings,
+                    data from Description Policy, Shipping Template Policy and Product Tax Code Policy
+                    in Amazon Listing when there are changes made to Magento Attribute
+                    of at least one mentioned parameter.'
                 )
             ]
         );
@@ -237,8 +244,8 @@ HTML
                     Synchronization::REVISE_UPDATE_IMAGES_YES => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises Images on Amazon Listing(s) if the Image or Attribute for
-                    Image of the Item is changed in Magento.'
+                    'Automatically revises Item Image in Amazon Listing if Product Image or Magento
+                    Attribute value used for Product Image is changed in Magento.'
                 )
             ]
         );
@@ -269,7 +276,7 @@ HTML
             self::SELECT,
             [
                 'name' => 'revise_change_selling_format_template',
-                'label' => $this->__('Selling Format Policy'),
+                'label' => $this->__('Price, Quantity and Format Policy'),
                 'value' => $formData['revise_change_selling_format_template'],
                 'values' => [
                     \Ess\M2ePro\Model\Template\Synchronization::REVISE_CHANGE_SELLING_FORMAT_TEMPLATE_NONE
@@ -278,7 +285,7 @@ HTML
                                 => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises Amazon Listing(s) if its Selling Format Policy was changed.'
+                    'Automatically revises Amazon Listing(s) if its Price, Quantity and Format Policy was changed.'
                 )
             ]
         );
@@ -298,18 +305,35 @@ HTML
         );
 
         $fieldset->addField(
-            'revise_change_shipping_override_template',
+            'revise_change_shipping_template',
             self::SELECT,
             [
-                'name' => 'revise_change_shipping_override_template',
-                'label' => $this->__('Shipping Override Policy'),
-                'value' => $formData['revise_change_shipping_override_template'],
+                'name' => 'revise_change_shipping_template',
+                'label' => $this->__('Shipping Policy'),
+                'value' => $formData['revise_change_shipping_template'],
                 'values' => [
-                    Synchronization::REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_NONE => $this->__('No'),
-                    Synchronization::REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_YES => $this->__('Yes'),
+                    Synchronization::REVISE_CHANGE_SHIPPING_TEMPLATE_NONE => $this->__('No'),
+                    Synchronization::REVISE_CHANGE_SHIPPING_TEMPLATE_YES => $this->__('Yes'),
                 ],
                 'tooltip' => $this->__(
-                    'Automatically revises Amazon Listing(s) if its Shipping Override Policy was changed.'
+                    'Automatically revises Amazon Listing(s) if its Shipping Policy was changed.'
+                )
+            ]
+        );
+
+        $fieldset->addField(
+            'revise_change_product_tax_code_template',
+            self::SELECT,
+            [
+                'name' => 'revise_change_product_tax_code_template',
+                'label' => $this->__('Product Tax Code Policy'),
+                'value' => $formData['revise_change_product_tax_code_template'],
+                'values' => [
+                    Synchronization::REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_NONE => $this->__('No'),
+                    Synchronization::REVISE_CHANGE_PRODUCT_TAX_CODE_TEMPLATE_YES => $this->__('Yes'),
+                ],
+                'tooltip' => $this->__(
+                    'Automatically revises Amazon Listing(s) if its Product Tax Code Policy was changed.'
                 )
             ]
         );

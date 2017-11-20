@@ -11,7 +11,9 @@ class MoveToListing extends Listing
     {
         $componentMode = $this->getRequest()->getParam('componentMode');
 
-        $selectedProducts = (array)json_decode($this->getRequest()->getParam('selectedProducts'));
+        $selectedProducts = (array)$this->getHelper('Data')->jsonDecode(
+            $this->getRequest()->getParam('selectedProducts')
+        );
         $listingId = (int)$this->getRequest()->getParam('listingId');
 
         $listingInstance = $this->parentFactory->getCachedObjectLoaded(
@@ -32,7 +34,9 @@ class MoveToListing extends Listing
 
             $listingProductInstance = $listingInstance
                 ->getChildObject()
-                ->addProductFromOther($otherListingProductInstance,false,false);
+                ->addProductFromOther(
+                    $otherListingProductInstance, \Ess\M2ePro\Helper\Data::INITIATOR_USER, false, false
+                );
 
             if (!($listingProductInstance instanceof \Ess\M2ePro\Model\Listing\Product)) {
 
@@ -40,7 +44,7 @@ class MoveToListing extends Listing
                     $otherListingProductInstance->getId(),
                     \Ess\M2ePro\Helper\Data::INITIATOR_USER,
                     NULL,
-                    \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_LISTING,
+                    \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_ITEM,
                     // M2ePro_TRANSLATIONS
                     // Product already exists in M2E listing(s).
                     'Product already exists in M2E Pro listing(s).',
@@ -56,7 +60,7 @@ class MoveToListing extends Listing
                 $otherListingProductInstance->getId(),
                 \Ess\M2ePro\Helper\Data::INITIATOR_USER,
                 NULL,
-                \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_LISTING,
+                \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_ITEM,
                 // M2ePro_TRANSLATIONS
                 // Item was successfully Moved
                 'Item was successfully Moved',

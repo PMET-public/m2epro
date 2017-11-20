@@ -27,21 +27,28 @@ class Config extends \Ess\M2ePro\Plugin\AbstractPlugin
         return true;
     }
 
-    public function aroundSave(\Magento\Config\Model\Config $interceptor, \Closure $callback)
+    public function aroundSave(\Magento\Config\Model\Config $interceptor, \Closure $callback, ...$arguments)
     {
-        return $this->execute('save', $interceptor, $callback);
+        return $this->execute('save', $interceptor, $callback, $arguments);
     }
 
     // ---------------------------------------
 
-    protected function processSave(\Magento\Config\Model\Config $interceptor, \Closure $callback)
+    protected function processSave(\Magento\Config\Model\Config $interceptor, \Closure $callback, array $arguments)
     {
         $saveData = $interceptor->getData();
 
-        if (!isset($saveData['section']) ||
-            !in_array($saveData['section'], ['ebay_integration', 'amazon_integration'])
+        $availableSections = [
+            \Ess\M2ePro\Helper\View\Configuration::EBAY_SECTION_COMPONENT,
+            \Ess\M2ePro\Helper\View\Configuration::AMAZON_SECTION_COMPONENT,
+            \Ess\M2ePro\Helper\View\Configuration::ADVANCED_SECTION_COMPONENT,
+        ];
+
+        if (
+            !isset($saveData['section']) ||
+            !in_array($saveData['section'], $availableSections)
         ) {
-            return $callback();
+            return $callback(...$arguments);
         }
 
         $groups = $saveData['groups'];
@@ -57,6 +64,13 @@ class Config extends \Ess\M2ePro\Plugin\AbstractPlugin
             $this->helperFactory->getObject('Module')->getConfig()->setGroupValue(
                 '/component/amazon/', 'mode',
                 (int)$groups['amazon_mode']['fields']['amazon_mode_field']['value']
+            );
+        }
+
+        if (isset($groups['module_mode']['fields']['module_mode_field']['value'])) {
+            $this->helperFactory->getObject('Module')->getConfig()->setGroupValue(
+                null, 'is_disabled',
+                (int)$groups['module_mode']['fields']['module_mode_field']['value']
             );
         }
 

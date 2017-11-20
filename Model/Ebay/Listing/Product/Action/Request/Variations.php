@@ -11,6 +11,8 @@
  */
 namespace Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request;
 
+use \Ess\M2ePro\Model\Ebay\Template\Description\Source as DescriptionSource;
+
 class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\AbstractModel
 {
     //########################################
@@ -31,6 +33,10 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
         }
 
         $data['variation'] = $this->getVariationsData();
+
+        $this->getConfigurator()->tryToIncreasePriority(
+            \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Configurator::PRIORITY_VARIATION
+        );
 
         if ($sets = $this->getSetsData()) {
             $data['variations_sets'] = $sets;
@@ -57,13 +63,10 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
 
         $qtyMode = $this->getEbayListingProduct()->getEbaySellingFormatTemplate()->getQtyMode();
 
-        $variations = $this->getListingProduct()->getVariations(true);
         $productsIds = array();
-
         $variationIdsIndexes = array();
 
-        foreach ($variations as $variation) {
-
+        foreach ($this->getListingProduct()->getVariations(true) as $variation) {
             /** @var $variation \Ess\M2ePro\Model\Listing\Product\Variation */
             /** @var $ebayVariation \Ess\M2ePro\Model\Ebay\Listing\Product\Variation */
 
@@ -79,18 +82,22 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
                 '_instance_' => $variation,
                 'price'      => $variationPrice,
                 'qty'        => $ebayVariation->isDelete() ? 0 : $ebayVariation->getQty(),
-                'sku'        => $ebayVariation->getSku(),
+                'sku'        => $ebayVariation->getOnlineSku() ? $ebayVariation->getOnlineSku()
+                                                               : $ebayVariation->getSku(),
                 'add'        => $ebayVariation->isAdd(),
                 'delete'     => $ebayVariation->isDelete(),
                 'specifics'  => array()
             );
 
+            if ($ebayVariation->isDelete()) {
+                $item['sku'] = 'del-' . sha1(microtime(1).$ebayVariation->getOnlineSku());
+            }
+
             if (($qtyMode == \Ess\M2ePro\Model\Template\SellingFormat::QTY_MODE_PRODUCT_FIXED ||
                 $qtyMode == \Ess\M2ePro\Model\Template\SellingFormat::QTY_MODE_PRODUCT) && !$item['delete']) {
 
-                $options = $variation->getOptions();
-                foreach ($options as $option) {
-                    $productsIds[] = $option['product_id'];
+                foreach ($variation->getOptions(true) as $option) {
+                    $productsIds[] = $option->getProductId();
                 }
             }
 
@@ -130,10 +137,9 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
                 $item['details'] = $variationDetails;
             }
 
-            $options = $variation->getOptions(true);
-
-            foreach ($options as $option) {
+            foreach ($variation->getOptions(true) as $option) {
                 /** @var $option \Ess\M2ePro\Model\Listing\Product\Variation\Option */
+
                 $item['specifics'][$option->getAttribute()] = $option->getOption();
             }
 
@@ -326,9 +332,7 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
         $imagesLinks = array();
         $attributeLabel = false;
 
-        $variations = $this->getListingProduct()->getVariations(true);
-
-        foreach ($variations as $variation) {
+        foreach ($this->getListingProduct()->getVariations(true) as $variation) {
 
             /** @var $variation \Ess\M2ePro\Model\Listing\Product\Variation */
 
@@ -336,9 +340,7 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
                 continue;
             }
 
-            $options = $variation->getOptions(true);
-
-            foreach ($options as $option) {
+            foreach ($variation->getOptions(true) as $option) {
 
                 /** @var $option \Ess\M2ePro\Model\Listing\Product\Variation\Option */
 
@@ -359,23 +361,26 @@ class Variations extends \Ess\M2ePro\Model\Ebay\Listing\Product\Action\Request\A
                 }
 
                 $attributeLabel = $foundAttributeLabel;
-
                 $optionImages = $this->getEbayListingProduct()->getEbayDescriptionTemplate()
                                      ->getSource($option->getMagentoProduct())
                                      ->getVariationImages();
 
-                $links = array();
                 foreach ($optionImages as $image) {
 
                     if (!$image->getUrl()) {
                         continue;
                     }
 
-                    $links[] = $image->getUrl();
-                    $images[] = $image;
-                }
+                    if (count($imagesLinks[$option->getOption()]) >= DescriptionSource::VARIATION_IMAGES_COUNT_MAX) {
+                        break 2;
+                    }
 
-                $imagesLinks[$option->getOption()] = array_merge($links, $imagesLinks[$option->getOption()]);
+                    if (!isset($images[$image->getHash()])) {
+
+                        $imagesLinks[$option->getOption()][] = $image->getUrl();
+                        $images[$image->getHash()] = $image;
+                    }
+                }
             }
         }
 

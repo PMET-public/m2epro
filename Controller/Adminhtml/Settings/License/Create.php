@@ -34,34 +34,11 @@ class Create extends \Ess\M2ePro\Controller\Adminhtml\Base
                     $licenseData[$key] = $post[$key];
                     continue;
                 }
-                $this->setAjaxContent(json_encode([
+                $this->setJsonContent([
                     'success' => false,
                     'message' => $this->__('You should fill all required fields.')
-                ]), false);
+                ]);
                 return $this->getResult();
-            }
-
-            $registry = $this->activeRecordFactory->getObjectLoaded(
-                'Registry', '/wizard/license_form_data/', 'key', false
-            );
-
-            if (is_null($registry)) {
-                $registry = $this->activeRecordFactory->getObject('Registry');
-            }
-
-            $earlierFormData = $registry->getData('value');
-
-            if (!empty($earlierFormData)) {
-                $earlierFormData = json_decode($earlierFormData, true);
-
-                if ($earlierFormData == $licenseData) {
-
-                    $this->setAjaxContent(json_encode(array(
-                        'success' => true,
-                        'message' => $this->__('The License Key has been successfully created.')
-                    )), false);
-                    return $this->getResult();
-                }
             }
 
             $primaryConfig = $this->getHelper('Primary')->getConfig();
@@ -77,23 +54,31 @@ class Create extends \Ess\M2ePro\Controller\Adminhtml\Base
 
             if ($licenseResult) {
 
+                $registry = $this->activeRecordFactory->getObjectLoaded(
+                    'Registry', '/wizard/license_form_data/', 'key', false
+                );
+
+                if (is_null($registry)) {
+                    $registry = $this->activeRecordFactory->getObject('Registry');
+                }
+
                 $registry->setData('key', '/wizard/license_form_data/');
-                $registry->setData('value', json_encode($licenseData));
+                $registry->setData('value', $this->getHelper('Data')->jsonEncode($licenseData));
                 $registry->save();
 
                 $licenseKey = $this->getHelper('Primary')->getConfig()->getGroupValue('/license/', 'key');
-                $this->setAjaxContent(json_encode(array(
+                $this->setJsonContent(array(
                     'success' => true,
                     'message' => $this->__('The License Key has been successfully created.'),
                     'license_key' => $licenseKey
-                )), false);
+                ));
             } else {
                 $primaryConfig->setGroupValue('/license/','key', $oldLicenseKey);
 
-                $this->setAjaxContent(json_encode(array(
+                $this->setJsonContent(array(
                     'success' => false,
                     'message' => $this->__('Internal Server Error')
-                )), false);
+                ));
             }
 
             return $this->getResult();

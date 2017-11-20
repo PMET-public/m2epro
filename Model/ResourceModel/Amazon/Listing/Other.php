@@ -42,11 +42,15 @@ class Other extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Child
 
     //########################################
 
-    public function getAllRepricingSkus(Account $account)
+    public function getAllRepricingSkus(Account $account, $repricingDisabled = null)
     {
         $listingOtherCollection = $this->amazonFactory->getObject('Listing\Other')->getCollection();
         $listingOtherCollection->addFieldToFilter('is_repricing', 1);
         $listingOtherCollection->addFieldToFilter('account_id', $account->getId());
+
+        if (!is_null($repricingDisabled)) {
+            $listingOtherCollection->addFieldToFilter('is_repricing_disabled', (int)$repricingDisabled);
+        }
 
         $listingOtherCollection->getSelect()->reset(\Zend_Db_Select::COLUMNS);
         $listingOtherCollection->getSelect()->columns(
@@ -58,46 +62,49 @@ class Other extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Child
 
     //########################################
 
-    public function removeRepricing(Account $account, array $skus = array())
+    public function getProductsDataBySkus(array $skus = array(),
+                                          array $filters = array(),
+                                          array $columns = array())
     {
-        if (empty($skus)) {
-            $this->getConnection()->update(
-                $this->getMainTable(),
-                array(
-                    'is_repricing'          => 0,
-                    'is_repricing_disabled' => 0
-                )
+        $result = [];
+        $skuWithQuotes = false;
+
+        foreach ($skus as $sku) {
+            if (strpos($sku, '"') !== false) {
+                $skuWithQuotes = true;
+                break;
+            }
+        }
+
+        $skus = (empty($skus) || !$skuWithQuotes) ? [$skus] : array_chunk($skus, 500);
+
+        foreach ($skus as $skusChunk) {
+
+            $listingOtherCollection = $this->amazonFactory->getObject('Listing\Other')->getCollection();
+
+            if (!empty($skusChunk)) {
+                $skusChunk = array_map(function($el){ return (string)$el; }, $skusChunk);
+                $listingOtherCollection->addFieldToFilter('sku', array('in' => array_unique($skusChunk)));
+            }
+
+            if (!empty($filters)) {
+                foreach ($filters as $columnName => $columnValue) {
+                    $listingOtherCollection->addFieldToFilter($columnName, $columnValue);
+                }
+            }
+
+            if (!empty($columns)) {
+                $listingOtherCollection->getSelect()->reset(\Zend_Db_Select::COLUMNS);
+                $listingOtherCollection->getSelect()->columns($columns);
+            }
+
+            $result = array_merge(
+                $result,
+                $listingOtherCollection->getData()
             );
-
-            return;
-        }
-        $listingOtherCollection = $this->amazonFactory->getObject('Listing\Other')->getCollection();
-
-        $listingOtherCollection->addFieldToFilter('account_id', $account->getId());
-        $listingOtherCollection->addFieldToFilter('is_repricing', 1);
-
-        if (!empty($skus)) {
-            $listingOtherCollection->addFieldToFilter('sku', array('in' => array_unique($skus)));
         }
 
-        $listingOtherCollection->getSelect()->reset(\Zend_Db_Select::COLUMNS);
-        $listingOtherCollection->getSelect()->columns(array(
-            'id' => 'main_table.id'
-        ));
-
-        $listingOtherIds = $listingOtherCollection->getColumnValues('id');
-        if (empty($listingOtherIds)) {
-            return;
-        }
-
-        $this->getConnection()->update(
-            $this->getMainTable(),
-            array(
-                'is_repricing'          => 0,
-                'is_repricing_disabled' => 0
-            ),
-            array('listing_other_id IN (?)' => $listingOtherIds)
-        );
+        return $result;
     }
 
     //########################################

@@ -27,14 +27,22 @@ class NewAction extends Template
     private function prepareTemplateType($type)
     {
         if ($type == \Ess\M2ePro\Block\Adminhtml\Amazon\Template\Grid::TEMPLATE_SELLING_FORMAT) {
-            return 'SellingFormat';
+            return 'sellingFormat';
         }
 
         if ($type == \Ess\M2ePro\Block\Adminhtml\Amazon\Template\Grid::TEMPLATE_SHIPPING_OVERRIDE) {
             return 'shippingOverride';
         }
 
-        return ucfirst($type);
+        if ($type == \Ess\M2ePro\Block\Adminhtml\Amazon\Template\Grid::TEMPLATE_SHIPPING_TEMPLATE) {
+            return 'shippingTemplate';
+        }
+
+        if ($type == \Ess\M2ePro\Block\Adminhtml\Amazon\Template\Grid::TEMPLATE_PRODUCT_TAX_CODE) {
+            return 'productTaxCode';
+        }
+
+        return $type;
     }
 
     //########################################

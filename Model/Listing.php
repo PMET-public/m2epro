@@ -8,6 +8,9 @@
 
 namespace Ess\M2ePro\Model;
 
+/**
+ * @method \Ess\M2ePro\Model\Ebay\Listing|\Ess\M2ePro\Model\Amazon\Listing getChildObject()
+ */
 class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractModel
 {
     const SOURCE_PRODUCTS_CUSTOM     = 1;
@@ -447,7 +450,9 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
 
     //########################################
 
-    public function addProduct($product, $checkingMode = false, $checkHasProduct = true,
+    public function addProduct($product,
+                               $initiator = \Ess\M2ePro\Helper\Data::INITIATOR_UNKNOWN,
+                               $checkingMode = false, $checkHasProduct = true,
                                array $logAdditionalInfo = array())
     {
         $productId = $product instanceof \Magento\Catalog\Model\Product ?
@@ -471,6 +476,8 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
         $listingProductTemp = $this->parentFactory->getObject($this->getComponentMode(), 'Listing\Product')
             ->setData($data)->save();
 
+        $listingProductTemp->getChildObject()->afterSaveNewEntity();
+
         $variationUpdaterModel = ucwords($this->getComponentMode()).'\Listing\Product\Variation\Updater';
         /** @var \Ess\M2ePro\Model\Listing\Product\Variation\Updater $variationUpdaterObject */
         $variationUpdaterObject = $this->modelFactory->getObject($variationUpdaterModel);
@@ -485,12 +492,12 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
             $this->getId(),
             $productId,
             $listingProductTemp->getId(),
-            \Ess\M2ePro\Helper\Data::INITIATOR_UNKNOWN,
+            $initiator,
             NULL,
             \Ess\M2ePro\Model\Listing\Log::ACTION_ADD_PRODUCT_TO_LISTING,
             // M2ePro\TRANSLATIONS
-            // Item was successfully Added
-            'Item was successfully Added',
+            // Product was successfully Added
+            'Product was successfully Added',
             \Ess\M2ePro\Model\Log\AbstractModel::TYPE_NOTICE,
             \Ess\M2ePro\Model\Log\AbstractModel::PRIORITY_LOW,
             $logAdditionalInfo
@@ -502,11 +509,12 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
 
     // ---------------------------------------
 
-    public function addProductsFromCategory($categoryId)
+    public function addProductsFromCategory($categoryId,
+                                            $initiator = \Ess\M2ePro\Helper\Data::INITIATOR_UNKNOWN)
     {
         $categoryProductsArray = $this->getProductsFromCategory($categoryId);
         foreach ($categoryProductsArray as $productTemp) {
-            $this->addProduct($productTemp);
+            $this->addProduct($productTemp, $initiator);
         }
     }
 
@@ -575,7 +583,20 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
                     $listingProduct
                 );
                 $listingProduct->setStatus(\Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED)->save();
-                $listingsProductsForRemove[$listingProduct->getId()] = $listingProduct;
+
+                if ($listingProduct->isComponentModeAmazon()) {
+                    /** @var \Ess\M2ePro\Model\Amazon\Listing\Product $amazonListingProduct */
+                    $amazonListingProduct = $listingProduct->getChildObject();
+                    $variationManager = $amazonListingProduct->getVariationManager();
+
+                    if (!$variationManager->isRelationChildType() ||
+                        !isset($listingsProducts[$variationManager->getVariationParentId()])) {
+
+                        $listingsProductsForRemove[$listingProduct->getId()] = $listingProduct;
+                    }
+                } else {
+                    $listingsProductsForRemove[$listingProduct->getId()] = $listingProduct;
+                }
             }
 
             $listingId = $listingProduct->getListingId();
@@ -609,17 +630,77 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
                                     ->addFieldToFilter('product_id', $productId)
                                     ->getItems();
 
-        $deletedVariationsIds = array();
+        $processedVariationsIds = array();
 
         /** @var $variationOption \Ess\M2ePro\Model\Listing\Product\Variation\Option */
         foreach ($variationOptions as $variationOption) {
 
+            if (in_array($variationOption->getListingProductVariationId(), $processedVariationsIds)) {
+                continue;
+            }
+
+            $processedVariationsIds[] = $variationOption->getListingProductVariationId();
+
             /** @var $listingProduct \Ess\M2ePro\Model\Listing\Product */
             $listingProduct = $variationOption->getListingProduct();
 
-            if (!in_array($variationOption->getListingProductVariationId(),$deletedVariationsIds)) {
-                $variationOption->getListingProductVariation()->delete();
-                $deletedVariationsIds[] = $variationOption->getListingProductVariationId();
+            if ($variationOption->isComponentModeEbay()) {
+
+                /** @var \Ess\M2ePro\Model\Ebay\Listing\Product\Variation $ebayVariation */
+                $variation = $variationOption->getListingProductVariation();
+                $ebayVariation = $variation->getChildObject();
+
+                if (!$ebayVariation->isNotListed()) {
+                    $additionalData = $listingProduct->getAdditionalData();
+                    $variationsThatCanNotBeDeleted = isset($additionalData['variations_that_can_not_be_deleted'])
+                        ? $additionalData['variations_that_can_not_be_deleted'] : array();
+
+                    $specifics = array();
+
+                    foreach ($variation->getOptions(true, [], true, false) as $option) {
+                        $specifics[$option->getAttribute()] = $option->getOption();
+                    }
+
+                    $tempVariation[] = array(
+                        'qty' => 0,
+                        'price' => $ebayVariation->getOnlinePrice(),
+                        'sku' => $ebayVariation->getOnlineSku(),
+                        'add' => 0,
+                        'delete' => 1,
+                        'specifics' => $specifics,
+                        'has_sales' => true
+                    );
+
+                    if ($ebayVariation->isDelete()) {
+                        $tempVariation['sku'] = 'del-' . sha1(microtime(1).$ebayVariation->getOnlineSku());
+                    }
+
+                    $key = 'variations_specifics_replacements';
+                    if (!empty($additionalData[$key])) {
+                        $tempVariation[$key] = $additionalData[$key];
+                    }
+
+                    $variationAdditionalData = $variation->getAdditionalData();
+                    if (isset($variationAdditionalData['ebay_mpn_value'])) {
+                        $tempVariation['details']['mpn'] = $variationAdditionalData['ebay_mpn_value'];
+                    }
+
+                    $variationsThatCanNotBeDeleted[] = $tempVariation;
+                    $additionalData['variations_that_can_not_be_deleted'] = $variationsThatCanNotBeDeleted;
+
+                    $listingProduct->setSettings('additional_data', $additionalData)->save();
+                }
+
+                $variation->delete();
+            } else {
+                $listingProduct->deleteProcessingLocks();
+
+                if ($listingProduct->isStoppable()) {
+                    $this->activeRecordFactory->getObject('StopQueue')->add($listingProduct);
+                    $listingProduct->setStatus(\Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED)->save();
+                }
+
+                $listingsProductsForRemove[$listingProduct->getId()] = $listingProduct;
             }
 
             $listingId = $listingProduct->getListingId();
@@ -647,6 +728,20 @@ class Listing extends \Ess\M2ePro\Model\ActiveRecord\Component\Parent\AbstractMo
         }
 
         foreach ($listingsProductsForRemove as $listingProduct) {
+            if ($listingProduct->isComponentModeAmazon()) {
+                /** @var \Ess\M2ePro\Model\Amazon\Listing\Product $amazonListingProduct */
+                $amazonListingProduct = $listingProduct->getChildObject();
+                $variationManager = $amazonListingProduct->getVariationManager();
+
+                if ($variationManager->isRelationChildType()) {
+                    /** @var \Ess\M2ePro\Model\Amazon\Listing\Product $amazonParentListingProduct */
+                    $amazonParentListingProduct = $variationManager->getTypeModel()->getAmazonParentListingProduct();
+                    $listingProduct->delete();
+                    $amazonParentListingProduct->getVariationManager()->getTypeModel()->getProcessor()->process();
+                    continue;
+                }
+            }
+
             $listingProduct->delete();
         }
         // ---------------------------------------

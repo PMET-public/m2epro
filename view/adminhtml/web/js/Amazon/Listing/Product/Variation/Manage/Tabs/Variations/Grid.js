@@ -52,7 +52,6 @@ define([
                 reviseAction: this.actionHandler.reviseAction.bind(this.actionHandler),
                 stopAction: this.actionHandler.stopAction.bind(this.actionHandler),
                 stopAndRemoveAction: this.actionHandler.stopAndRemoveAction.bind(this.actionHandler),
-                removeAction: this.actionHandler.removeAction.bind(this.actionHandler),
                 previewItemsAction: this.actionHandler.previewItemsAction.bind(this.actionHandler),
                 startTranslateAction: this.actionHandler.startTranslateAction.bind(this.actionHandler),
                 stopTranslateAction: this.actionHandler.stopTranslateAction.bind(this.actionHandler)
@@ -205,7 +204,7 @@ define([
                 var optionContainer = new Element('div'),
                     optionLabel = new Element('div'),
                     optionValue = new Element('select', {
-                        class: 'product-option',
+                        class: 'product-option admin__control-select',
                         style: 'width: 100%',
                         name: 'product_options[values][]'
                     }),
@@ -265,6 +264,11 @@ define([
                     onSuccess: function (transport) {
 
                         var response = self.parseResponse(transport);
+
+                        if (response['vocabulary_attribute_options']) {
+                            ListingGridHandlerObj.variationProductManageHandler.openVocabularyOptionsPopUp(response['vocabulary_attribute_options']);
+                            return;
+                        }
 
                         if (response.success) {
                             self.actionHandler.gridHandler.unselectAllAndReload();
@@ -337,7 +341,7 @@ define([
                 }
             });
 
-            if (oldValue) {
+            if (oldValue && variation.get(attr)[oldValue]) {
                 index++;
                 valid = this.validateAttributeOptions(el, variation.get(attr)[oldValue], index);
             }
@@ -523,6 +527,11 @@ define([
                         self.messageObj['add' + response.type[0].toUpperCase() + response.type.slice(1) + 'Message'](response.msg);
                     }
 
+                    if (response['vocabulary_attribute_options']) {
+                        ListingGridHandlerObj.variationProductManageHandler.openVocabularyOptionsPopUp(response['vocabulary_attribute_options']);
+                        return;
+                    }
+
                     self.actionHandler.gridHandler.unselectAllAndReload();
                 }
             });
@@ -573,6 +582,7 @@ define([
             $super();
 
             ListingGridHandlerObj.variationProductManageHandler.reloadSettings(null);
+            ListingGridHandlerObj.variationProductManageHandler.reloadVocabulary(null);
         }
 
         // ---------------------------------------

@@ -9,6 +9,7 @@
 namespace Ess\M2ePro\Model\Amazon\Listing\Other;
 
 use \Ess\M2ePro\Model\Amazon\Template;
+use \Ess\M2ePro\Helper\Component\Amazon;
 
 class Moving extends \Ess\M2ePro\Model\AbstractModel
 {
@@ -108,7 +109,9 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
             return false;
         }
 
-        $listingProduct = $listing->addProduct($otherListing->getProductId());
+        $listingProduct = $listing->addProduct(
+            $otherListing->getProductId(), \Ess\M2ePro\Helper\Data::INITIATOR_EXTENSION
+        );
 
         if (!($listingProduct instanceof \Ess\M2ePro\Model\Listing\Product)) {
             return false;
@@ -138,7 +141,7 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
 
         $listingProduct->addData($dataForUpdate)->save();
         $amazonListingProduct->addData(array_merge(
-            [$listingProduct->getResource()->getChildPrimary() => $listingProduct->getId()],
+            [$listingProduct->getResource()->getChildPrimary(Amazon::NICK) => $listingProduct->getId()],
             $dataForUpdate
         ))->save();
 
@@ -182,7 +185,7 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
             $otherListing->getId(),
             \Ess\M2ePro\Helper\Data::INITIATOR_EXTENSION,
             NULL,
-            \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_LISTING,
+            \Ess\M2ePro\Model\Listing\Other\Log::ACTION_MOVE_ITEM,
             // M2ePro\TRANSLATIONS
             // Item was successfully Moved
             'Item was successfully Moved',
@@ -200,8 +203,8 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
             NULL,
             \Ess\M2ePro\Model\Listing\Log::ACTION_MOVE_FROM_OTHER_LISTING,
             // M2ePro\TRANSLATIONS
-            // Item was successfully Moved
-            'Item was successfully Moved',
+            // Product was successfully Moved
+            'Product was successfully Moved',
             \Ess\M2ePro\Model\Log\AbstractModel::TYPE_NOTICE,
             \Ess\M2ePro\Model\Log\AbstractModel::PRIORITY_MEDIUM
         );
@@ -273,7 +276,7 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
 
         $childModel = $tempModel->getChildObject();
         $childModel->addData(array_merge(
-            [$tempModel->getResource()->getChildPrimary() => $tempModel->getId()],
+            [$tempModel->getResource()->getChildPrimary(Amazon::NICK) => $tempModel->getId()],
             $dataForAdd
         ))->save();
 
@@ -330,8 +333,8 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
                                 \Ess\M2ePro\Model\Template\Synchronization::REVISE_CHANGE_SELLING_FORMAT_TEMPLATE_NONE,
             'revise_change_description_template' =>
                             \Ess\M2ePro\Model\Amazon\Template\Synchronization::REVISE_CHANGE_DESCRIPTION_TEMPLATE_NONE,
-            'revise_change_shipping_override_template' =>
-                \Ess\M2ePro\Model\Amazon\Template\Synchronization::REVISE_CHANGE_SHIPPING_OVERRIDE_TEMPLATE_NONE,
+            'revise_change_shipping_template' =>
+                \Ess\M2ePro\Model\Amazon\Template\Synchronization::REVISE_CHANGE_SHIPPING_TEMPLATE_NONE,
             'revise_change_listing' =>
                                 \Ess\M2ePro\Model\Template\Synchronization::REVISE_CHANGE_LISTING_NONE,
             'stop_status_disabled' => \Ess\M2ePro\Model\Amazon\Template\Synchronization::STOP_STATUS_DISABLED_NONE,
@@ -376,7 +379,7 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
 
         $childModel = $tempModel->getChildObject();
         $childModel->addData(array_merge(
-            [$tempModel->getResource()->getChildPrimary() => $tempModel->getId()],
+            [$tempModel->getResource()->getChildPrimary(Amazon::NICK) => $tempModel->getId()],
             $dataForAdd
         ))->save();
 
@@ -414,23 +417,24 @@ class Moving extends \Ess\M2ePro\Model\AbstractModel
             'qty_custom_value' => 1,
 
             'currency' => $this->getMarketplace()->getChildObject()->getDefaultCurrency(),
-            'price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_PRODUCT,
-            'price_variation_mode' => \Ess\M2ePro\Model\Amazon\Template\SellingFormat::PRICE_VARIATION_MODE_PARENT,
+            'regular_price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_MODE_PRODUCT,
+            'regular_price_variation_mode' =>
+                \Ess\M2ePro\Model\Amazon\Template\SellingFormat::PRICE_VARIATION_MODE_PARENT,
 
-            'map_price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_NONE,
+            'regular_map_price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_MODE_NONE,
 
-            'sale_price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_NONE,
-            'sale_price_start_date_mode' => \Ess\M2ePro\Model\Amazon\Template\SellingFormat::DATE_VALUE,
-            'sale_price_start_date_value' => $this->getHelper('Data')->getCurrentGmtDate(false, 'Y-m-d'),
-            'sale_price_end_date_mode' => \Ess\M2ePro\Model\Amazon\Template\SellingFormat::DATE_VALUE,
-            'sale_price_end_date_value' => $this->getHelper('Data')->getCurrentGmtDate(false, 'Y-m-d')
+            'regular_sale_price_mode' => \Ess\M2ePro\Model\Template\SellingFormat::PRICE_MODE_NONE,
+            'regular_sale_price_start_date_mode' => \Ess\M2ePro\Model\Amazon\Template\SellingFormat::DATE_VALUE,
+            'regular_sale_price_start_date_value' => $this->getHelper('Data')->getCurrentGmtDate(false, 'Y-m-d'),
+            'regular_sale_price_end_date_mode' => \Ess\M2ePro\Model\Amazon\Template\SellingFormat::DATE_VALUE,
+            'regular_sale_price_end_date_value' => $this->getHelper('Data')->getCurrentGmtDate(false, 'Y-m-d')
         );
 
         $tempModel->addData($dataForAdd)->save();
 
         $childModel = $tempModel->getChildObject();
         $childModel->addData(array_merge(
-            [$tempModel->getResource()->getChildPrimary() => $tempModel->getId()],
+            [$tempModel->getResource()->getChildPrimary(Amazon::NICK) => $tempModel->getId()],
             $dataForAdd
         ))->save();
 

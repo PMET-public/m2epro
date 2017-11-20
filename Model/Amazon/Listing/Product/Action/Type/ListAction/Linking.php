@@ -130,18 +130,22 @@ class Linking extends \Ess\M2ePro\Model\AbstractModel
 
             /** @var \Ess\M2ePro\Model\Amazon\Listing\Product\Variation\Manager\PhysicalUnit $typeModel */
             $typeModel = $this->getVariationManager()->getTypeModel();
-            $data['variation_product_options'] = json_encode($typeModel->getProductOptions());
+            $data['variation_product_options'] = $this->getHelper('Data')->jsonEncode($typeModel->getProductOptions());
         }
 
         if ($this->getVariationManager()->isRelationChildType()) {
             $typeModel = $this->getVariationManager()->getTypeModel();
 
             if ($typeModel->isVariationProductMatched()) {
-                $data['variation_product_options'] = json_encode($typeModel->getRealProductOptions());
+                $data['variation_product_options'] = $this->getHelper('Data')->jsonEncode(
+                    $typeModel->getRealProductOptions()
+                );
             }
 
             if ($typeModel->isVariationChannelMatched()) {
-                $data['variation_channel_options'] = json_encode($typeModel->getRealChannelOptions());
+                $data['variation_channel_options'] = $this->getHelper('Data')->jsonEncode(
+                    $typeModel->getRealChannelOptions()
+                );
             }
         }
 
@@ -178,11 +182,13 @@ class Linking extends \Ess\M2ePro\Model\AbstractModel
     private function linkSimpleOrIndividualProduct()
     {
         $this->getListingProduct()->addData(array(
+            'status' => \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED,
+        ));
+        $this->getAmazonListingProduct()->addData(array(
             'general_id'         => $this->getGeneralId(),
             'is_isbn_general_id' => $this->getHelper('Data')->isISBN($this->getGeneralId()),
             'general_id_owner'   => \Ess\M2ePro\Model\Amazon\Listing\Product::IS_GENERAL_ID_OWNER_NO,
             'sku'                => $this->getSku(),
-            'status'             => \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED,
         ));
         $this->getListingProduct()->save();
 
@@ -194,10 +200,12 @@ class Linking extends \Ess\M2ePro\Model\AbstractModel
     private function linkChildProduct()
     {
         $this->getListingProduct()->addData(array(
+            'status' => \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED
+        ));
+        $this->getAmazonListingProduct()->addData(array(
             'general_id'         => $this->getGeneralId(),
             'is_isbn_general_id' => $this->getHelper('Data')->isISBN($this->getGeneralId()),
             'sku'                => $this->getSku(),
-            'status'             => \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED
         ));
 
         /** @var ChildRelation $typeModel */
@@ -217,6 +225,8 @@ class Linking extends \Ess\M2ePro\Model\AbstractModel
         $typeModel->setChannelVariation($parentVariations[$this->generalId]);
 
         $this->createAmazonItem();
+
+        $this->getListingProduct()->save();
 
         $parentTypeModel->getProcessor()->process();
 
@@ -246,7 +256,7 @@ class Linking extends \Ess\M2ePro\Model\AbstractModel
             $dataForUpdate['general_id_owner'] = \Ess\M2ePro\Model\Amazon\Listing\Product::IS_GENERAL_ID_OWNER_NO;
         }
 
-        $this->getListingProduct()->addData($dataForUpdate);
+        $this->getAmazonListingProduct()->addData($dataForUpdate);
 
         /** @var ParentRelation $typeModel */
         $typeModel = $this->getVariationManager()->getTypeModel();

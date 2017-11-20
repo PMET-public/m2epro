@@ -26,6 +26,7 @@ class GetGlobalMessages extends Main
         $this->addServerNotifications();
 
         if (!$muteMessages) {
+            $this->addCronErrorMessage();
             $this->getCustomViewControllerHelper()->addMessages($this);
         }
 
@@ -37,7 +38,7 @@ class GetGlobalMessages extends Main
             $message = [$message->getType() => $message->getText()];
         }
 
-        $this->setAjaxContent(json_encode($messages), false);
+        $this->setJsonContent($messages);
         return $this->getResult();
     }
 

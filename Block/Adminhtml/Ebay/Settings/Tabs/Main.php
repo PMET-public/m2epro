@@ -85,33 +85,6 @@ class Main extends \Ess\M2ePro\Block\Adminhtml\Settings\Tabs\AbstractTab
             ]
         );
 
-        $multiCurrency = $this->getMultiCurrency();
-        if (!empty($multiCurrency)) {
-            foreach ($multiCurrency as $marketplace => $data) {
-                $currencies = explode(',', $data['currency']);
-
-                $preparedValues = [];
-                $selectedValue = '';
-                foreach ($currencies as $currency) {
-                    if ($this->isCurrencyForCode($data['code'], $currency)) {
-                        $selectedValue = $currency;
-                    }
-                    $preparedValues[$currency] = $currency;
-                }
-
-                $fieldset->addField('selling_currency' . $data['code'],
-                    'select',
-                    [
-                        'name' => 'selling_currency' . $data['code'],
-                        'label' => $this->__($marketplace) . ' ' . $this->__('Currency'),
-                        'values' => $preparedValues,
-                        'value' => $selectedValue,
-                        'tooltip' => $this->__('Choose the Currency you want to sell for.')
-                    ]
-                );
-            }
-        }
-
         $fieldset->addField('check_the_same_product_already_listed_mode',
             'select',
             [
@@ -182,88 +155,6 @@ class Main extends \Ess\M2ePro\Block\Adminhtml\Settings\Tabs\AbstractTab
         return parent::_prepareForm();
     }
 
-    protected function _prepareLayout()
-    {
-        // TODO NOT SUPPORTED FEATURES
-        /** @var \Ess\M2ePro\Helper\Component\Ebay\Motors $motorsHelper */
-        /*      $motorsHelper = $this->getHelper('Component\Ebay\Motors');
-
-              $resource = Mage::getSingleton('core/resource');
-              $epidsDictionaryTable = $resource->getTableName('m2epro_ebay_dictionary_motor_epid');
-              $ktypeDictionaryTable = $resource->getTableName('m2epro_ebay_dictionary_motor_ktype');*/
-
-        // ---------------------------------------
-        /** @var \Ess\M2ePro\Model\ResourceModel\Marketplace\Collection $epidsMarketplaceCollection */
-        /*$epidsMarketplaceCollection = Mage::getModel('M2ePro/Marketplace')->getCollection();
-        $epidsMarketplaceCollection->addFieldToFilter(
-            'id',
-            array('in' => $motorsHelper->getEpidSupportedMarketplaces())
-        );
-        $epidsMarketplaceCollection->addFieldToFilter('status', Ess_M2ePro_Model_Marketplace::STATUS_ENABLE);
-        $this->is_motors_epids_marketplace_enabled = (bool)$epidsMarketplaceCollection->getSize();
-
-        $ebayDictionaryRecords = (int)$resource->getConnection('core_read')
-            ->select()
-            ->from($epidsDictionaryTable, array(new Zend_Db_Expr('COUNT(*)')))
-            ->where('is_custom = 0')
-            ->query()
-            ->fetchColumn();
-
-        $customDictionaryRecords = (int)$resource->getConnection('core_read')
-            ->select()
-            ->from($epidsDictionaryTable, array(new Zend_Db_Expr('COUNT(*)')))
-            ->where('is_custom = 1')
-            ->query()
-            ->fetchColumn();
-
-        $this->motors_epids_dictionary_ebay_count   = $ebayDictionaryRecords;
-        $this->motors_epids_dictionary_custom_count = $customDictionaryRecords;*/
-        // ---------------------------------------
-
-        // ---------------------------------------
-        /** @var \Ess\M2ePro\Model\ResourceModel\Marketplace\Collection $ktypeMarketplaceCollection */
-        /*$ktypeMarketplaceCollection = Mage::getModel('M2ePro/Marketplace')->getCollection();
-        $ktypeMarketplaceCollection->addFieldToFilter(
-            'id',
-            array('in' => $motorsHelper->getKtypeSupportedMarketplaces())
-        );
-        $ktypeMarketplaceCollection->addFieldToFilter('status', Ess_M2ePro_Model_Marketplace::STATUS_ENABLE);
-        $this->is_motors_ktypes_marketplace_enabled = (bool)$ktypeMarketplaceCollection->getSize();
-
-        $ebayDictionaryRecords = (int)$resource->getConnection('core_read')
-            ->select()
-            ->from($ktypeDictionaryTable, array(new Zend_Db_Expr('COUNT(*)')))
-            ->where('is_custom = 0')
-            ->query()
-            ->fetchColumn();
-
-        $customDictionaryRecords = (int)$resource->getConnection('core_read')
-            ->select()
-            ->from($ktypeDictionaryTable, array(new Zend_Db_Expr('COUNT(*)')))
-            ->where('is_custom = 1')
-            ->query()
-            ->fetchColumn();
-
-        $this->motors_ktypes_dictionary_ebay_count   = $ebayDictionaryRecords;
-        $this->motors_ktypes_dictionary_custom_count = $customDictionaryRecords;*/
-        // ---------------------------------------
-
-        // ---------------------------------------
-        /*$attributesForMotors = Mage::getResourceModel('catalog/product_attribute_collection')
-            ->addVisibleFilter()
-            ->addFieldToFilter('backend_type', array('eq' => 'text'))
-            ->addFieldToFilter('frontend_input', array('eq' => 'textarea'))
-            ->toArray();
-
-        $this->attributes_for_motors = $attributesForMotors['items'];
-
-        $this->motors_epids_attribute = $this->cacheConfig->getGroupValue('/ebay/motors/','epids_attribute');
-        $this->motors_ktypes_attribute = $this->cacheConfig->getGroupValue('/ebay/motors/','ktypes_attribute');*/
-        // ---------------------------------------
-
-        return parent::_prepareLayout();
-    }
-
     //########################################
 
     protected function _beforeToHtml()
@@ -274,36 +165,6 @@ class Main extends \Ess\M2ePro\Block\Adminhtml\Settings\Tabs\AbstractTab
         );
 
         return parent::_beforeToHtml();
-    }
-
-    //########################################
-
-    protected function getMultiCurrency()
-    {
-        $multiCurrency = [];
-
-        $collection = $this->activeRecordFactory->getObject('Marketplace')->getCollection();
-        $collection->addFieldToFilter('component_mode', \Ess\M2ePro\Helper\Component\Ebay::NICK);
-        $collection->addFieldToFilter('status', \Ess\M2ePro\Model\Marketplace::STATUS_ENABLE);
-
-        foreach ($collection as $marketplace) {
-            $tempCurrency = $marketplace->getChildObject()->getCurrencies();
-            if (strpos($tempCurrency, ',') !== false) {
-                $multiCurrency[$marketplace->getTitle()]['currency'] = $tempCurrency;
-                $multiCurrency[$marketplace->getTitle()]['code'] = $marketplace->getCode();
-                $multiCurrency[$marketplace->getTitle()]['default'] = substr($tempCurrency,
-                    0,
-                    strpos($tempCurrency, ','));
-            }
-        }
-
-        return $multiCurrency;
-    }
-
-    protected function isCurrencyForCode($code, $currency)
-    {
-        return $currency == $this->cacheConfig
-            ->getGroupValue('/ebay/selling/currency/', $code);
     }
 
     //########################################

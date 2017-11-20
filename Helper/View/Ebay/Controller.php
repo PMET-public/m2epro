@@ -37,12 +37,6 @@ class Controller extends \Ess\M2ePro\Helper\AbstractHelper
 
     public function addMessages(\Ess\M2ePro\Controller\Adminhtml\Base $controller)
     {
-        if ($this->getHelper('Module')->isReadyToWork() &&
-            $this->getHelper('Module\Cron')->isLastRunMoreThan(1,true) &&
-            !$this->getHelper('Module')->isDevelopmentEnvironment()) {
-            $this->addCronNotificationMessage($controller);
-        }
-
         if ($this->getHelper('View\Ebay')->isInstallationWizardFinished()) {
 
             $feedbacksNotificationMode = $this->moduleConfig->getGroupValue(
@@ -59,25 +53,6 @@ class Controller extends \Ess\M2ePro\Helper\AbstractHelper
     }
 
     //########################################
-
-    private function addCronNotificationMessage(\Ess\M2ePro\Controller\Adminhtml\Base $controller)
-    {
-        $url = $this->getHelper('Module\Support')->getKnowledgebaseArticleUrl(
-            '692955-why-cron-service-is-not-working-in-my-magento'
-        );
-
-        // M2ePro_TRANSLATIONS
-        // Attention! Last eBay AUTOMATIC Synchronization was performed by Cron more than 1 hour ago. You should set up Cron Job, otherwise no Automatic Synchronization will be performed.<br/>You can check this <a href="%url%" target="_blank">Article</a> to get how to set Cron Job.
-        $message = 'Attention! Last eBay AUTOMATIC Synchronization was performed by Cron ';
-        $message .= 'more than 1 hour ago. You should set up Cron Job, otherwise no Automatic Synchronization ';
-        $message .= 'will be performed.<br/>You can check this ';
-        $message .= '<a href="%url%" target="_blank" class="external-link">Article</a> to get how to set Cron Job.';
-
-        $controller->getMessageManager()->addNotice(
-            $this->getHelper('Module\Translation')->__($message, $url),
-            \Ess\M2ePro\Controller\Adminhtml\Base::GLOBAL_MESSAGES_GROUP
-        );
-    }
 
     private function addFeedbackNotificationMessage(\Ess\M2ePro\Controller\Adminhtml\Base $controller)
     {
@@ -163,10 +138,15 @@ Do not forget to press Save Button after returning back to Magento
 
                 if (($currentTimeStamp + 60*60*24*10) >= $tokenExpirationTimeStamp) {
 
+                    $expirationDate = $this->localeDate->date(strtotime($accountData['token_expired_date']));
+                    $expirationDate = $this->localeDate->formatDateTime($expirationDate,
+                                                                        \IntlDateFormatter::MEDIUM,
+                                                                        \IntlDateFormatter::SHORT);
+
                     $tempMessage = $this->getHelper('Module\Translation')->__(
                         trim($textToTranslate),
                         $this->getHelper('Data')->escapeHtml($accountData['title']),
-                        $this->localeDate->date(strtotime($accountData['token_expired_date']))->toString($format),
+                        $expirationDate,
                         $this->getHelper('View\Ebay')->getMenuRootNodeLabel(),
                             $controller->getUrl('*/ebay_account/edit', array('id' => $accountData['id']))
                         );

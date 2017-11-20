@@ -54,6 +54,8 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
     {
         parent::_construct();
 
+        $this->setDefaultSort(false);
+
         $this->listing = $this->getHelper('Data\GlobalData')->getValue('view_listing');
 
         $this->hideSwitchToIndividualConfirm =
@@ -80,18 +82,15 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         $collection = $this->magentoProductCollectionFactory->create();
 
         $collection->setListingProductModeOn();
-        $collection->addAttributeToSelect('sku');
-        $collection->addAttributeToSelect('name');
+        $collection->setListing($this->listing->getId());
 
-        $collection->joinTable(
-            array('cisi' => 'cataloginventory_stock_item'),
-            'product_id=entity_id',
-            array(
-                'qty' => 'qty'
-            ),
-            '{{table}}.stock_id=1',
-            'left'
-        );
+        if ($this->isFilterOrSortByPriceIsUsed('online_price', 'amazon_online_price')) {
+            $collection->setIsNeedToUseIndexerParent(true);
+        }
+
+        $collection->addAttributeToSelect('name')
+            ->addAttributeToSelect('sku')
+            ->joinStockItem();
 
         // ---------------------------------------
 
@@ -124,44 +123,25 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 'variation_child_statuses'       => 'variation_child_statuses',
                 'amazon_sku'                     => 'sku',
                 'online_qty'                     => 'online_qty',
-                'online_price'                   => 'online_price',
-                'online_sale_price'              => 'IF(
-                  `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                  `alp`.`online_sale_price`,
+                'online_regular_price'           => 'online_regular_price',
+                'online_regular_sale_price'      => 'IF(
+                  `alp`.`online_regular_sale_price_start_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` >= CURRENT_DATE(),
+                  `alp`.`online_regular_sale_price`,
                   NULL
                 )',
-                'online_sale_price_start_date'   => 'online_sale_price_start_date',
-                'online_sale_price_end_date'     => 'online_sale_price_end_date',
-                'is_afn_channel'                 => 'is_afn_channel',
-                'is_general_id_owner'            => 'is_general_id_owner',
-                'is_variation_parent'            => 'is_variation_parent',
-                'defected_messages'              => 'defected_messages',
-                'min_online_price'                      => 'IF(
-                    (`t`.`variation_min_price` IS NULL),
-                    IF(
-                      `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                      `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                      `alp`.`online_sale_price`,
-                      `alp`.`online_price`
-                    ),
-                    `t`.`variation_min_price`
-                )',
-                'max_online_price'                      => 'IF(
-                    (`t`.`variation_max_price` IS NULL),
-                    IF(
-                      `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                      `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                      `alp`.`online_sale_price`,
-                      `alp`.`online_price`
-                    ),
-                    `t`.`variation_max_price`
-                )'
+                'online_regular_sale_price_start_date'   => 'online_regular_sale_price_start_date',
+                'online_regular_sale_price_end_date'     => 'online_regular_sale_price_end_date',
+                'online_business_price'            => 'online_business_price',
+                'online_business_discounts'        => 'online_business_discounts',
+                'is_repricing'                     => 'is_repricing',
+                'is_afn_channel'                   => 'is_afn_channel',
+                'is_general_id_owner'              => 'is_general_id_owner',
+                'is_variation_parent'              => 'is_variation_parent',
+                'variation_parent_afn_state'       => 'variation_parent_afn_state',
+                'variation_parent_repricing_state' => 'variation_parent_repricing_state',
+                'defected_messages'                => 'defected_messages',
             ),
             '{{table}}.variation_parent_id is NULL'
         );
@@ -172,104 +152,16 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             array('malpr' => $alprTable),
             '(`alp`.`listing_product_id` = `malpr`.`listing_product_id`)',
             array(
-                'is_repricing' => 'listing_product_id',
                 'is_repricing_disabled' => 'is_online_disabled',
             )
         );
 
-        $collection->getSelect()->joinLeft(
-            new \Zend_Db_Expr('(
-                SELECT
-                    `malp`.`variation_parent_id`,
-                    MIN(
-                        IF(
-                            `malp`.`online_sale_price_start_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_end_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                            `malp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                            `malp`.`online_sale_price`,
-                            `malp`.`online_price`
-                        )
-                    ) as variation_min_price,
-                    MAX(
-                        IF(
-                            `malp`.`online_sale_price_start_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_end_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                            `malp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                            `malp`.`online_sale_price`,
-                            `malp`.`online_price`
-                        )
-                    ) as variation_max_price
-                FROM `'. $alpTable .'` as malp
-                INNER JOIN `'. $lpTable .'` AS `mlp`
-                    ON (`malp`.`listing_product_id` = `mlp`.`id`)
-                WHERE `mlp`.`status` IN (
-                    ' . \Ess\M2ePro\Model\Listing\Product::STATUS_LISTED . ',
-                    ' . \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED . ',
-                    ' . \Ess\M2ePro\Model\Listing\Product::STATUS_UNKNOWN . '
-                ) AND `malp`.`variation_parent_id` IS NOT NULL
-                GROUP BY `malp`.`variation_parent_id`
-            )'),
-            'alp.listing_product_id=t.variation_parent_id',
-            array(
-                'variation_min_price' => 'variation_min_price',
-                'variation_max_price' => 'variation_max_price',
-            )
-        );
+        if ($collection->isNeedUseIndexerParent()) {
+            $collection->joinIndexerParent();
+        } else {
+            $collection->setIsNeedToInjectPrices(true);
+        }
 
-        $collection->getSelect()->joinLeft(
-            new \Zend_Db_Expr('(
-                SELECT
-                    `malp`.`variation_parent_id`,
-                    COUNT(*) AS `variation_repricing_enabled_count`
-                FROM `'. $alpTable .'` as malp
-                LEFT JOIN `'.$alprTable.'`
-                    AS `malpr` ON (`malp`.`listing_product_id` = `malpr`.`listing_product_id`)
-                WHERE `malp`.`listing_product_id` IS NOT NULL AND `malpr`.`is_online_disabled` = 0
-                GROUP BY `malp`.`variation_parent_id`
-            )'),
-            'lp.id=t_2.variation_parent_id',
-            array(
-                'variation_repricing_enabled_count' => 'variation_repricing_enabled_count',
-            )
-        );
-
-        $collection->getSelect()->joinLeft(
-            new \Zend_Db_Expr('(
-                SELECT
-                    `malp`.`variation_parent_id`,
-                    COUNT(*) AS `variation_repricing_disabled_count`
-                FROM `'. $alpTable .'` as malp
-                LEFT JOIN `'.$alprTable.'`
-                    AS `malpr` ON (`malp`.`listing_product_id` = `malpr`.`listing_product_id`)
-                WHERE `malp`.`listing_product_id` IS NOT NULL AND `malpr`.`is_online_disabled` = 1
-                GROUP BY `malp`.`variation_parent_id`
-            )'),
-            'lp.id=t_3.variation_parent_id',
-            array(
-                'variation_repricing_disabled_count' => 'variation_repricing_disabled_count',
-            )
-        );
-
-        $collection->getSelect()->joinLeft(
-            new \Zend_Db_Expr('(
-                SELECT
-                    `malp`.`variation_parent_id`,
-                    COUNT(*) AS `variation_afn_count`
-                FROM `'. $alpTable .'` as malp
-                WHERE `malp`.`is_afn_channel` = 1
-                GROUP BY `malp`.`variation_parent_id`
-            )'),
-            'lp.id=t_4.variation_parent_id',
-            array(
-                'variation_afn_count' => 'variation_afn_count',
-            )
-        );
-
-        // ---------------------------------------
-
-        // Set collection to grid
         $this->setCollection($collection);
 
         return parent::_prepareCollection();
@@ -446,12 +338,6 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             'url'      => '',
             'confirm'  => $this->__('Are you sure?')
         ), 'asin_isbn');
-
-        $this->getMassactionBlock()->addItem('remove', array(
-            'label'    => $this->__('Remove from Listing'),
-            'url'      => '',
-            'confirm'  => $this->__('Are you sure?')
-        ), 'other');
         // ---------------------------------------
 
         return parent::_prepareMassaction();
@@ -701,7 +587,7 @@ HTML;
         }
 
         if (!$row->getData('is_variation_parent') && $row->getData('defected_messages')) {
-            $defectedMessages = json_decode($row->getData('defected_messages'), true);
+            $defectedMessages = $this->getHelper('Data')->jsonDecode($row->getData('defected_messages'));
 
             $msg = '';
             foreach ($defectedMessages as $message) {
@@ -792,12 +678,15 @@ HTML;
             return $value;
         }
 
-        if ($row->getData('amazon_status') == \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED ||
-            $row->getData('general_id') == '') {
+        if ($row->getData('general_id') == '') {
             return '<span style="color: gray;">' . $this->__('Not Listed') . '</span>';
         }
 
-        $variationChildStatuses = json_decode($row->getData('variation_child_statuses'), true);
+        $variationChildStatuses = $this->getHelper('Data')->jsonDecode($row->getData('variation_child_statuses'));
+
+        if (empty($variationChildStatuses)) {
+            return $this->__('N/A');
+        }
 
         $activeChildrenCount = 0;
         foreach ($variationChildStatuses as $childStatus => $count) {
@@ -816,34 +705,37 @@ HTML;
         }
 
         $resultValue = $this->__('AFN');
+        $additionalData = (array)$this->getHelper('Data')->jsonDecode($row->getData('additional_data'));
 
-        if ($row->getData('variation_afn_count')) {
-            $filter = base64_encode('online_qty[afn]=1');
+        $filter = base64_encode('online_qty[afn]=1');
 
-            $productTitle = $this->getHelper('Data')->escapeHtml($row->getData('name'));
-            $vpmt = $this->__('Manage Variations of &quot;%s%&quot; ', $productTitle);
-            $vpmt = addslashes($vpmt);
+        $productTitle = $this->getHelper('Data')->escapeHtml($row->getData('name'));
+        $vpmt = $this->__('Manage Variations of &quot;%s%&quot; ', $productTitle);
+        $vpmt = addslashes($vpmt);
 
-            $linkTitle = $this->__('Show AFN Child Products.');
+        $linkTitle = $this->__('Show AFN Child Products.');
+        $afnCountWord = !empty($additionalData['afn_count']) ? $additionalData['afn_count']
+            : $this->__('show');
 
-            $resultValue = $resultValue."&nbsp;<a href=\"javascript:void(0)\"
-                               class=\"hover-underline\"
-                               title=\"{$linkTitle}\"
-                               onclick=\"ListingGridHandlerObj.variationProductManageHandler.openPopUp(
-                                {$listingProductId}, '{$vpmt}', '{$filter}'
-                            )\">[".$row->getData('variation_afn_count')."]</a>";
-        }
+        $resultValue = $resultValue."&nbsp;<a href=\"javascript:void(0)\"
+                           class=\"hover-underline\"
+                           title=\"{$linkTitle}\"
+                           onclick=\"ListingGridHandlerObj.variationProductManageHandler.openPopUp(
+                            {$listingProductId}, '{$vpmt}', '{$filter}'
+                        )\">[".$afnCountWord."]</a>";
 
-        if ($value > 0) {
-            $resultValue = $value . '<br/>' . $resultValue;
-        }
-
-        return $resultValue;
+        return <<<HTML
+    <div>{$value}</div>
+    <div>{$resultValue}</div>
+HTML;
     }
 
     public function callbackColumnPrice($value, $row, $column, $isExport)
     {
-        if ($row->getData('amazon_status') == \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED) {
+        if ((!$row->getData('is_variation_parent') &&
+            $row->getData('amazon_status') == \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED) ||
+            ($row->getData('is_variation_parent') && $row->getData('general_id') == '')) {
+
             return '<span style="color: gray;">' . $this->__('Not Listed') . '</span>';
         }
 
@@ -851,27 +743,49 @@ HTML;
 
         $repricingHtml ='';
 
-        if ($this->getHelper('Component\Amazon\Repricing')->isEnabled() &&
-            ($row->getData('is_repricing') || $row->getData('is_variation_parent'))
-        ) {
+        if ($this->getHelper('Component\Amazon\Repricing')->isEnabled() && $row->getData('is_repricing')) {
 
-            $enabledCount  = $row->getData('variation_repricing_enabled_count');
-            $disabledCount = $row->getData('variation_repricing_disabled_count');
+            if ($row->getData('is_variation_parent')) {
 
-            if ($row->getData('is_variation_parent') && ($enabledCount || $disabledCount)) {
+                $additionalData = (array)$this->getHelper('Data')->jsonDecode($row->getData('additional_data'));
+
+                $enabledCount = isset($additionalData['repricing_enabled_count'])
+                    ? $additionalData['repricing_enabled_count'] : null;
+
+                $disabledCount = isset($additionalData['repricing_disabled_count'])
+                    ? $additionalData['repricing_disabled_count'] : null;
 
                 if ($enabledCount && $disabledCount) {
                     $icon = 'repricing-enabled-disabled';
                     $countHtml = '['.$enabledCount.'/'.$disabledCount.']';
-                    $text = $this->__('This Parent has either Enabled and Disabled for Repricing Child Products.');
+                    $text = $this->__(
+                        'This Parent has either Enabled and Disabled for dynamic repricing Child Products. <br>
+                        <strong>Please note</strong> that the Price value(s) shown in the grid might be
+                        different from the actual one from Amazon. It is caused by the delay in the values
+                        updating made via the Repricing Service.'
+                    );
                 } elseif ($enabledCount) {
                     $icon = 'repricing-enabled';
                     $countHtml = '['.$enabledCount.']';
-                    $text = $this->__('All Child Product of this Parent are Enabled for Repricing.');
-                } else {
+                    $text = $this->__(
+                        'All Child Products of this Parent are Enabled for dynamic repricing. <br>
+                        <strong>Please note</strong> that the Price value(s) shown in the grid might be different
+                        from the actual one from Amazon. It is caused by the delay in the values updating
+                        made via the Repricing Service.'
+                    );
+                } elseif ($disabledCount) {
                     $icon = 'repricing-disabled';
                     $countHtml = '['.$disabledCount.']';
                     $text = $this->__('All Child Products of this Parent are Disabled for Repricing.');
+                } else {
+                    $icon = 'repricing-enabled';
+                    $countHtml = $this->__('[show]');
+                    $text = $this->__(
+                        'Some Child Products of this Parent are managed by the Repricing Service. <br>
+                        <strong>Please note</strong> that the Price value(s) shown in the grid might be
+                        different from the actual one from Amazon. It is caused by the delay in the
+                        values updating made via the Repricing Service.'
+                    );
                 }
 
                 $filter = base64_encode('online_price[is_repricing]=1');
@@ -904,8 +818,10 @@ HTML;
             } elseif (!$row->getData('is_variation_parent')) {
                 $icon = 'repricing-enabled';
                 $text = $this->__(
-                    'This product is used by Amazon Repricing Tool.
-                 The Price cannot be updated through the M2E Pro.'
+                    'This Product is used by Amazon Repricing Tool, so its Price cannot be managed via M2E Pro.<br>
+                    <strong>Please note</strong> that the Price value shown in the grid might be different
+                    from the actual one from Amazon. It is caused by the delay in the values
+                    updating made via the Repricing Service.'
                 );
 
                 if ((int)$row->getData('is_repricing_disabled') == 1) {
@@ -924,10 +840,13 @@ HTML;
             }
         }
 
-        $onlineMinPrice = $row->getData('min_online_price');
-        $onlineMaxPrice = $row->getData('max_online_price');
+        $onlineMinRegularPrice = (float)$row->getData('min_online_regular_price');
+        $onlineMaxRegularPrice = (float)$row->getData('max_online_regular_price');
 
-        if (is_null($onlineMinPrice) || $onlineMinPrice === '') {
+        $onlineMinBusinessPrice = (float)$row->getData('min_online_business_price');
+        $onlineMaxBusinessPrice = (float)$row->getData('max_online_business_price');
+
+        if (empty($onlineMinRegularPrice) && empty($onlineMinBusinessPrice)) {
             if ($row->getData('amazon_status') == \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED ||
                 $row->getData('is_variation_parent')
             ) {
@@ -940,17 +859,33 @@ HTML;
         $currency = $this->listing->getMarketplace()->getChildObject()->getDefaultCurrency();
 
         if ($row->getData('is_variation_parent')) {
-            $onlineMinPriceStr = $this->convertAndFormatPriceCurrency($onlineMinPrice, $currency);
-            $onlineMaxPriceStr = $this->convertAndFormatPriceCurrency($onlineMaxPrice, $currency);
 
-            return $onlineMinPriceStr.(($onlineMinPrice != $onlineMaxPrice)?' - '.$onlineMaxPriceStr:'').$repricingHtml;
+            $onlineRegularPriceStr = '<span style="color: #f00;">0</span>';
+            if (!empty($onlineMinRegularPrice) && !empty($onlineMaxRegularPrice)) {
+                $onlineMinRegularPriceStr = $this->convertAndFormatPriceCurrency($onlineMinRegularPrice, $currency);
+                $onlineMaxRegularPriceStr = $this->convertAndFormatPriceCurrency($onlineMaxRegularPrice, $currency);
+
+                $onlineRegularPriceStr = $onlineMinRegularPriceStr
+                    .(($onlineMinRegularPrice != $onlineMaxRegularPrice)?' - '.$onlineMaxRegularPriceStr:'');
+            }
+
+            $onlineBusinessPriceStr = '';
+            if (!empty($onlineMinBusinessPrice) && !empty($onlineMaxBusinessPrice)) {
+                $onlineMinBusinessPriceStr = $this->convertAndFormatPriceCurrency($onlineMinBusinessPrice, $currency);
+                $onlineMaxBusinessPriceStr = $this->convertAndFormatPriceCurrency($onlineMaxBusinessPrice, $currency);
+
+                $onlineBusinessPriceStr = '<br /><strong>B2B: </strong>'.$onlineMinBusinessPriceStr
+                    .(($onlineMinBusinessPrice != $onlineMaxBusinessPrice)?' - '.$onlineMaxBusinessPriceStr:'');
+            }
+
+            return $onlineRegularPriceStr.$onlineBusinessPriceStr.$repricingHtml;
         }
 
-        $onlinePrice = $row->getData('online_price');
-        if ((float)$onlinePrice <= 0) {
-            $priceValue = '<span style="color: #f00;">0</span>';
+        $onlineRegularPrice = $row->getData('online_regular_price');
+        if ((float)$onlineRegularPrice <= 0) {
+            $regularPriceValue = '<span style="color: #f00;">0</span>';
         } else {
-            $priceValue = $this->convertAndFormatPriceCurrency($onlinePrice, $currency);
+            $regularPriceValue = $this->convertAndFormatPriceCurrency($onlineRegularPrice, $currency);
         }
 
         if ($row->getData('is_repricing') &&
@@ -960,57 +895,52 @@ HTML;
             $accountId = $this->listing['account_id'];
             $sku = $row->getData('amazon_sku');
 
-            $priceValue =<<<HTML
+            $regularPriceValue =<<<HTML
 <a id="m2epro_repricing_price_value_{$sku}"
    class="m2epro-repricing-price-value"
    sku="{$sku}"
    account_id="{$accountId}"
    href="javascript:void(0)"
-   onclick="AmazonListingProductRepricingPriceObj.showRepricingPrice()">{$priceValue}</a>
+   onclick="AmazonListingProductRepricingPriceObj.showRepricingPrice()">{$regularPriceValue}</a>
 HTML;
         }
 
         $resultHtml = '';
 
-        $salePrice = $row->getData('online_sale_price');
+        $salePrice = $row->getData('online_regular_sale_price');
         if (!$row->getData('is_variation_parent') && (float)$salePrice > 0) {
             $currentTimestamp = strtotime($this->getHelper('Data')->getCurrentGmtDate(false,'Y-m-d 00:00:00'));
 
-            $startDateTimestamp = strtotime($row->getData('online_sale_price_start_date'));
-            $endDateTimestamp   = strtotime($row->getData('online_sale_price_end_date'));
+            $startDateTimestamp = strtotime($row->getData('online_regular_sale_price_start_date'));
+            $endDateTimestamp   = strtotime($row->getData('online_regular_sale_price_end_date'));
 
             if ($currentTimestamp <= $endDateTimestamp) {
                 $fromDate = $this->_localeDate->formatDate(
-                    $row->getData('online_sale_price_start_date'), \IntlDateFormatter::MEDIUM
+                    $row->getData('online_regular_sale_price_start_date'), \IntlDateFormatter::MEDIUM
                 );
 
                 $toDate = $this->_localeDate->formatDate(
-                    $row->getData('online_sale_price_end_date'), \IntlDateFormatter::MEDIUM
+                    $row->getData('online_regular_sale_price_end_date'), \IntlDateFormatter::MEDIUM
                 );
 
                 $intervalHtml = <<<HTML
-<div class="m2epro-field-tooltip m2epro-field-tooltip-price-info admin__field-tooltip">
-    <a class="admin__field-tooltip-action" href="javascript://"></a>
-    <div class="admin__field-tooltip-content">
-        <span style="color:gray;">
-            <strong>From:</strong> {$fromDate}<br/>
-            <strong>To:</strong> {$toDate}
-        </span>
-    </div>
-</div>
+<span style="color: gray;">
+    <strong>From:</strong> {$fromDate}<br/>
+    <strong>To:</strong> {$toDate}
+</span>
 HTML;
-
+                $intervalHtml = $this->getTooltipHtml($intervalHtml, '', ['m2epro-field-tooltip-price-info']);
                 $salePriceValue = $this->convertAndFormatPriceCurrency($salePrice, $currency);
 
                 if ($currentTimestamp >= $startDateTimestamp &&
                     $currentTimestamp <= $endDateTimestamp &&
-                    $salePrice < (float)$onlinePrice
+                    $salePrice < (float)$onlineRegularPrice
                 ) {
-                    $resultHtml .= '<span style="color: grey; text-decoration: line-through;">'.$priceValue.'</span>' .
-                                    $repricingHtml;
+                    $resultHtml .= '<span style="color: grey; text-decoration: line-through;">'.
+                                    $regularPriceValue.'</span>'.$repricingHtml;
                     $resultHtml .= '<br/>'.$intervalHtml.'&nbsp;'.$salePriceValue;
                 } else {
-                    $resultHtml .= $priceValue . $repricingHtml;
+                    $resultHtml .= $regularPriceValue . $repricingHtml;
                     $resultHtml .= '<br/>'.$intervalHtml.
                         '<span style="color:gray;">'.'&nbsp;'.$salePriceValue.'</span>';
                 }
@@ -1018,7 +948,32 @@ HTML;
         }
 
         if (empty($resultHtml)) {
-            $resultHtml = $priceValue . $repricingHtml;
+            $resultHtml = $regularPriceValue . $repricingHtml;
+        }
+
+        $onlineBusinessPrice = $row->getData('online_business_price');
+        if ((float)$onlineBusinessPrice > 0) {
+            $businessPriceValue = '<strong>B2B:</strong> '.
+                                  $this->convertAndFormatPriceCurrency($onlineBusinessPrice, $currency);
+
+            $businessDiscounts = $row->getData('online_business_discounts');
+            if (!empty($businessDiscounts) && $businessDiscounts = json_decode($businessDiscounts, true)) {
+                $discountsHtml = '';
+
+                foreach ($businessDiscounts as $qty => $price) {
+                    $price = $this->convertAndFormatPriceCurrency($price, $currency);
+                    $discountsHtml .= 'QTY >= '.(int)$qty.', price '.$price.'<br />';
+                }
+
+                $discountsHtml = $this->getTooltipHtml($discountsHtml, '', ['m2epro-field-tooltip-price-info']);
+                $businessPriceValue = $discountsHtml .'&nbsp;'. $businessPriceValue;
+            }
+
+            if (!empty($resultHtml)) {
+                $businessPriceValue = '<br />'.$businessPriceValue;
+            }
+
+            $resultHtml .= $businessPriceValue;
         }
 
         return $resultHtml;
@@ -1028,7 +983,7 @@ HTML;
     {
         $listingProductId  = (int)$row->getData('id');
         $isVariationParent = (bool)(int)$row->getData('is_variation_parent');
-        $additionalData    = (array)json_decode($row->getData('additional_data'), true);
+        $additionalData    = (array)$this->getHelper('Data')->jsonDecode($row->getData('additional_data'));
 
         $html = $this->getViewLogIconHtml($listingProductId, $isVariationParent);
 
@@ -1068,7 +1023,7 @@ HTML;
                     $this->getLockedTag($row);
             }
 
-            $variationChildStatuses = json_decode($variationChildStatuses, true);
+            $variationChildStatuses = $this->getHelper('Data')->jsonDecode($variationChildStatuses);
 
             $sortedStatuses = array();
             if (isset($variationChildStatuses[$statusUnknown])) {
@@ -1236,21 +1191,27 @@ HTML;
         $where = '';
 
         if (isset($value['from']) && $value['from'] != '') {
-            $where .= 'online_qty >= ' . $value['from'];
+            $where .= 'online_qty >= ' . (int)$value['from'];
         }
 
         if (isset($value['to']) && $value['to'] != '') {
             if (isset($value['from']) && $value['from'] != '') {
                 $where .= ' AND ';
             }
-            $where .= 'online_qty <= ' . $value['to'];
+            $where .= 'online_qty <= ' . (int)$value['to'];
         }
 
         if (isset($value['afn']) && $value['afn'] !== '') {
             if (!empty($where)) {
                 $where = '(' . $where . ') OR ';
             }
-            $where .= 'is_afn_channel = ' . (int)$value['afn'];
+
+            if ((int)$value['afn'] == 1) {
+                $where .= 'is_afn_channel = 1';
+            } else {
+                $partialFilter = \Ess\M2ePro\Model\Amazon\Listing\Product::VARIATION_PARENT_IS_AFN_STATE_PARTIAL;
+                $where .= "(is_afn_channel = 0 OR variation_parent_afn_state = {$partialFilter})";
+            }
         }
 
         $collection->getSelect()->where($where);
@@ -1269,25 +1230,25 @@ HTML;
         if (isset($value['from']) || isset($value['to'])) {
 
             if (isset($value['from']) && $value['from'] != '') {
-                $condition = 'min_online_price >= \''.$value['from'].'\'';
+                $condition = 'min_online_price >= \''.(float)$value['from'].'\'';
             }
             if (isset($value['to']) && $value['to'] != '') {
                 if (isset($value['from']) && $value['from'] != '') {
                     $condition .= ' AND ';
                 }
-                $condition .= 'min_online_price <= \''.$value['to'].'\'';
+                $condition .= 'min_online_price <= \''.(float)$value['to'].'\'';
             }
 
             $condition = '(' . $condition . ') OR (';
 
             if (isset($value['from']) && $value['from'] != '') {
-                $condition .= 'max_online_price >= \''.$value['from'].'\'';
+                $condition .= 'max_online_price >= \''.(float)$value['from'].'\'';
             }
             if (isset($value['to']) && $value['to'] != '') {
                 if (isset($value['from']) && $value['from'] != '') {
                     $condition .= ' AND ';
                 }
-                $condition .= 'max_online_price <= \''.$value['to'].'\'';
+                $condition .= 'max_online_price <= \''.(float)$value['to'].'\'';
             }
 
             $condition .= ')';
@@ -1301,14 +1262,11 @@ HTML;
                 $condition = '(' . $condition . ') OR ';
             }
 
-            if ($value['is_repricing'] === '0') {
-                $condition .= '(is_variation_parent = 0 AND is_repricing IS NULL) OR
-                               (is_variation_parent = 1 AND variation_repricing_enabled_count IS NULL AND
-                                                            variation_repricing_disabled_count IS NULL)';
+            if ((int)$value['is_repricing'] == 1) {
+                $condition .= 'is_repricing = 1';
             } else {
-                $condition .= 'is_repricing > 0 OR
-                               variation_repricing_enabled_count > 0 OR
-                               variation_repricing_disabled_count > 0';
+                $partialFilter = \Ess\M2ePro\Model\Amazon\Listing\Product::VARIATION_PARENT_IS_REPRICING_STATE_PARTIAL;
+                $condition .= "(is_repricing = 0 OR variation_parent_repricing_state = {$partialFilter})";
             }
         }
 
@@ -1399,15 +1357,17 @@ HTML;
 
     //########################################
 
-    public function getTooltipHtml($content, $id = '')
+    public function getTooltipHtml($content, $id = '', $classes = [])
     {
+        $classes = implode(' ', $classes);
+
         return <<<HTML
-<div id="{$id}" class="m2epro-field-tooltip admin__field-tooltip">
-    <a class="admin__field-tooltip-action" href="javascript://"></a>
-    <div class="admin__field-tooltip-content" style="">
-        {$content}
+    <div id="{$id}" class="m2epro-field-tooltip admin__field-tooltip {$classes}">
+        <a class="admin__field-tooltip-action" href="javascript://"></a>
+        <div class="admin__field-tooltip-content" style="">
+            {$content}
+        </div>
     </div>
-</div>
 HTML;
     }
 
@@ -1493,7 +1453,7 @@ HTML;
 
         $suggestData = array();
         if (!is_null($searchSettingsData)) {
-            $searchSettingsData = json_decode($searchSettingsData,true);
+            $searchSettingsData = $this->getHelper('Data')->jsonDecode($searchSettingsData);
             !empty($searchSettingsData['data']) && $suggestData = $searchSettingsData['data'];
 
         }
@@ -1564,7 +1524,7 @@ HTML;
         $generalIdSearchInfo = $row->getData('general_id_search_info');
 
         if (!empty($generalIdSearchInfo)) {
-            $generalIdSearchInfo = json_decode($generalIdSearchInfo, true);
+            $generalIdSearchInfo = $this->getHelper('Data')->jsonDecode($generalIdSearchInfo);
         }
 
         if (!empty($generalIdSearchInfo['is_set_automatic'])) {
@@ -1601,7 +1561,7 @@ HTML;
         $variationChildStatuses = $row->getData('variation_child_statuses');
 
         if ($variationManager->isVariationParent() && !empty($variationChildStatuses)) {
-            $variationChildStatuses = json_decode($variationChildStatuses, true);
+            $variationChildStatuses = $this->getHelper('Data')->jsonDecode($variationChildStatuses);
             unset($variationChildStatuses[\Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED]);
 
             foreach ($variationChildStatuses as $variationChildStatus) {
@@ -1661,7 +1621,7 @@ HTML;
             $this->childProductsWarningsData = array();
 
             $productsIds = array();
-            foreach ($this->getCollection()->getData() as $row) {
+            foreach ($this->getCollection()->getItems() as $row) {
                 $productsIds[] = $row['id'];
             }
 

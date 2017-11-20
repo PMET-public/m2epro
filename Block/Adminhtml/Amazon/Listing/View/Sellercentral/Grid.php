@@ -70,19 +70,11 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         $collection = $this->magentoProductCollectionFactory->create();
 
         $collection->setListingProductModeOn();
-        $collection->addAttributeToSelect('sku');
-        $collection->addAttributeToSelect('name');
+        $collection->setListing($this->listing->getId());
 
-        $collection->joinTable(
-            array('cisi' => 'cataloginventory_stock_item'),
-            'product_id=entity_id',
-            array(
-                'qty' => 'qty',
-                'is_in_stock' => 'is_in_stock'
-            ),
-            '{{table}}.stock_id=1',
-            'left'
-        );
+        $collection->addAttributeToSelect('name')
+            ->addAttributeToSelect('sku')
+            ->joinStockItem(array('qty' => 'qty', 'is_in_stock' => 'is_in_stock'));
 
         // ---------------------------------------
 
@@ -118,33 +110,47 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 'search_settings_status'        => 'search_settings_status',
                 'amazon_sku'                    => 'sku',
                 'online_qty'                    => 'online_qty',
-                'online_price'                  => 'online_price',
-                'online_sale_price'             => 'IF(
-                  `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                  `alp`.`online_sale_price`,
+                'online_regular_price'          => 'online_regular_price',
+                'online_regular_sale_price'     => 'IF(
+                  `alp`.`online_regular_sale_price_start_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` >= CURRENT_DATE(),
+                  `alp`.`online_regular_sale_price`,
                   NULL
                 )',
-                'online_sale_price_start_date'  => 'online_sale_price_start_date',
-                'online_sale_price_end_date'    => 'online_sale_price_end_date',
-                'is_afn_channel'                => 'is_afn_channel',
-                'is_general_id_owner'           => 'is_general_id_owner',
-                'is_variation_parent'           => 'is_variation_parent',
-                'variation_child_statuses'      => 'variation_child_statuses',
-                'variation_parent_id'           => 'variation_parent_id',
-                'defected_messages'             => 'defected_messages',
-                'min_online_price'                     => 'IF(
-                    `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                    `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                    `alp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                    `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                    `alp`.`online_sale_price`,
-                    `alp`.`online_price`
-                )'
+                'online_regular_sale_price_start_date'  => 'online_regular_sale_price_start_date',
+                'online_regular_sale_price_end_date'    => 'online_regular_sale_price_end_date',
+                'online_business_price'     => 'online_business_price',
+                'online_business_discounts' => 'online_business_discounts',
+                'is_afn_channel'                   => 'is_afn_channel',
+                'is_repricing'                     => 'is_repricing',
+                'is_general_id_owner'              => 'is_general_id_owner',
+                'is_variation_parent'              => 'is_variation_parent',
+                'variation_child_statuses'         => 'variation_child_statuses',
+                'variation_parent_id'              => 'variation_parent_id',
+                'variation_parent_afn_state'       => 'variation_parent_afn_state',
+                'variation_parent_repricing_state' => 'variation_parent_repricing_state',
+                'defected_messages'                => 'defected_messages',
             ),
             '{{table}}.is_variation_parent = 0'
         );
+
+        $collection->getSelect()->columns(array(
+            'min_online_price' => new \Zend_Db_Expr('
+                IF (
+                    `alp`.`online_regular_price` IS NULL,
+                    `alp`.`online_business_price`,
+                    IF (
+                        `alp`.`online_regular_sale_price` IS NOT NULL AND
+                        `alp`.`online_regular_sale_price_end_date` IS NOT NULL AND
+                        `alp`.`online_regular_sale_price_start_date` <= CURRENT_DATE() AND
+                        `alp`.`online_regular_sale_price_end_date` >= CURRENT_DATE(),
+                        `alp`.`online_regular_sale_price`,
+                        `alp`.`online_regular_price`
+                    )
+                )
+            ')
+        ));
 
         $alprTable = $this->activeRecordFactory->getObject('Amazon\Listing\Product\Repricing')
             ->getResource()->getMainTable();
@@ -152,7 +158,6 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             array('malpr' => $alprTable),
             '(`alp`.`listing_product_id` = `malpr`.`listing_product_id`)',
             array(
-                'is_repricing' => 'listing_product_id',
                 'is_repricing_disabled' => 'is_online_disabled',
             )
         );
@@ -398,7 +403,7 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 ->getTypeModel()
                 ->getMatchedAttributes();
 
-            if (!empty($matchedAttributes)) {
+            if (!empty($matchedAttributes) && !empty($channelOptions)) {
 
                 $sortedOptions = array();
 
@@ -466,7 +471,7 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         }
 
         if ($row->getData('defected_messages')) {
-            $defectedMessages = json_decode($row->getData('defected_messages'), true);
+            $defectedMessages = $this->getHelper('Data')->jsonDecode($row->getData('defected_messages'));
 
             $msg = '';
             foreach ($defectedMessages as $message) {
@@ -585,7 +590,7 @@ HTML;
 
     public function callbackColumnPrice($value, $row, $column, $isExport)
     {
-        $onlinePrice = $row->getData('online_price');
+        $onlinePrice = $row->getData('online_regular_price');
 
         $repricingHtml ='';
 
@@ -594,8 +599,10 @@ HTML;
 
             $icon = 'repricing-enabled';
             $text = $this->__(
-                'This product is used by Amazon Repricing Tool.
-                 The Price cannot be updated through the M2E Pro.'
+                'This Product is used by Amazon Repricing Tool, so its Price cannot be managed via M2E Pro. <br>
+                 <strong>Please note</strong> that the Price value(s) shown in the grid might
+                 be different from the actual one from Amazon. It is caused by the delay
+                 in the values updating made via the Repricing Service'
             );
 
             if ((int)$row->getData('is_repricing_disabled') == 1) {
@@ -613,7 +620,11 @@ HTML;
 HTML;
         }
 
-        if (is_null($onlinePrice) || $onlinePrice === '') {
+        $onlineBusinessPrice = $row->getData('online_business_price');
+
+        if ((is_null($onlinePrice) || $onlinePrice === '') &&
+            (is_null($onlineBusinessPrice) || $onlineBusinessPrice === '')
+        ) {
             if ($row->getData('amazon_status') == \Ess\M2ePro\Model\Listing\Product::STATUS_NOT_LISTED) {
                 return $this->__('N/A') . $repricingHtml;
             } else {
@@ -645,20 +656,20 @@ HTML;
 
         $resultHtml = '';
 
-        $salePrice = $row->getData('online_sale_price');
+        $salePrice = $row->getData('online_regular_sale_price');
         if ((float)$salePrice > 0) {
             $currentTimestamp = strtotime($this->getHelper('Data')->getCurrentGmtDate(false,'Y-m-d 00:00:00'));
 
-            $startDateTimestamp = strtotime($row->getData('online_sale_price_start_date'));
-            $endDateTimestamp   = strtotime($row->getData('online_sale_price_end_date'));
+            $startDateTimestamp = strtotime($row->getData('online_regular_sale_price_start_date'));
+            $endDateTimestamp   = strtotime($row->getData('online_regular_sale_price_end_date'));
 
             if ($currentTimestamp <= $endDateTimestamp) {
                 $fromDate = $this->_localeDate->formatDate(
-                    $row->getData('online_sale_price_start_date'), \IntlDateFormatter::MEDIUM
+                    $row->getData('online_regular_sale_price_start_date'), \IntlDateFormatter::MEDIUM
                 );
 
                 $toDate = $this->_localeDate->formatDate(
-                    $row->getData('online_sale_price_end_date'), \IntlDateFormatter::MEDIUM
+                    $row->getData('online_regular_sale_price_end_date'), \IntlDateFormatter::MEDIUM
                 );
 
                 $intervalHtml = <<<HTML
@@ -692,6 +703,29 @@ HTML;
 
         if (empty($resultHtml)) {
             $resultHtml = $priceValue . $repricingHtml;
+        }
+
+        if ((float)$onlineBusinessPrice > 0) {
+            $businessPriceValue = '<strong>B2B:</strong> '
+                                  .$this->convertAndFormatPriceCurrency($onlineBusinessPrice, $currency);
+
+            $businessDiscounts = $row->getData('online_business_discounts');
+            if (!empty($businessDiscounts) && $businessDiscounts = json_decode($businessDiscounts, true)) {
+                $discountsHtml = '';
+
+                foreach ($businessDiscounts as $qty => $price) {
+                    $price = $this->convertAndFormatPriceCurrency($price, $currency);
+                    $discountsHtml .= 'QTY >= '.(int)$qty.', price '.$price.'<br />';
+                }
+
+                $businessPriceValue .= $this->getTooltipHtml($discountsHtml);
+            }
+
+            if (!empty($resultHtml)) {
+                $businessPriceValue = '<br />'.$businessPriceValue;
+            }
+
+            $resultHtml .= $businessPriceValue;
         }
 
         return $resultHtml;
@@ -799,21 +833,27 @@ HTML;
         $where = '';
 
         if (isset($value['from']) && $value['from'] != '') {
-            $where .= 'online_qty >= ' . $value['from'];
+            $where .= 'online_qty >= ' . (int)$value['from'];
         }
 
         if (isset($value['to']) && $value['to'] != '') {
             if (isset($value['from']) && $value['from'] != '') {
                 $where .= ' AND ';
             }
-            $where .= 'online_qty <= ' . $value['to'];
+            $where .= 'online_qty <= ' . (int)$value['to'];
         }
 
         if (isset($value['afn']) && $value['afn'] !== '') {
             if (!empty($where)) {
                 $where = '(' . $where . ') OR ';
             }
-            $where .= 'is_afn_channel = ' . (int)$value['afn'];
+
+            if ((int)$value['afn'] == 1) {
+                $where .= 'is_afn_channel = 1';
+            } else {
+                $partialFilter = \Ess\M2ePro\Model\Amazon\Listing\Product::VARIATION_PARENT_IS_AFN_STATE_PARTIAL;
+                $where .= "(is_afn_channel = 0 OR variation_parent_afn_state = {$partialFilter})";
+            }
         }
 
         $collection->getSelect()->where($where);
@@ -829,14 +869,60 @@ HTML;
 
         $condition = '';
 
-        if (isset($value['from']) && $value['from'] != '') {
-            $condition = 'min_online_price >= \''.$value['from'].'\'';
-        }
-        if (isset($value['to']) && $value['to'] != '') {
+        if (isset($value['from']) || isset($value['to'])) {
+
             if (isset($value['from']) && $value['from'] != '') {
-                $condition .= ' AND ';
+                $condition = 'online_regular_price >= \''.(float)$value['from'].'\'';
             }
-            $condition .= 'min_online_price <= \''.$value['to'].'\'';
+            if (isset($value['to']) && $value['to'] != '') {
+                if (isset($value['from']) && $value['from'] != '') {
+                    $condition .= ' AND ';
+                }
+                $condition .= 'online_regular_price <= \''.(float)$value['to'].'\'';
+            }
+
+            $condition = '(' . $condition . ' AND
+            (
+                online_regular_price IS NOT NULL AND
+                ((online_regular_sale_price_start_date IS NULL AND
+                online_regular_sale_price_end_date IS NULL) OR
+                online_regular_sale_price IS NULL OR
+                online_regular_sale_price_start_date > CURRENT_DATE() OR
+                online_regular_sale_price_end_date < CURRENT_DATE())
+            )) OR (';
+
+            if (isset($value['from']) && $value['from'] != '') {
+                $condition .= 'online_regular_sale_price >= \''.(float)$value['from'].'\'';
+            }
+            if (isset($value['to']) && $value['to'] != '') {
+                if (isset($value['from']) && $value['from'] != '') {
+                    $condition .= ' AND ';
+                }
+                $condition .= 'online_regular_sale_price <= \''.(float)$value['to'].'\'';
+            }
+
+            $condition .= ' AND
+            (
+                online_regular_price IS NOT NULL AND
+                (online_regular_sale_price_start_date IS NOT NULL AND
+                online_regular_sale_price_end_date IS NOT NULL AND
+                online_regular_sale_price IS NOT NULL AND
+                online_regular_sale_price_start_date < CURRENT_DATE() AND
+                online_regular_sale_price_end_date > CURRENT_DATE())
+            )) OR (';
+
+            if (isset($value['from']) && $value['from'] != '') {
+                $condition .= 'online_business_price >= \''.(float)$value['from'].'\'';
+            }
+            if (isset($value['to']) && $value['to'] != '') {
+                if (isset($value['from']) && $value['from'] != '') {
+                    $condition .= ' AND ';
+                }
+                $condition .= 'online_business_price <= \''.(float)$value['to'].'\'';
+            }
+
+            $condition .= ' AND (online_regular_price IS NULL))';
+
         }
 
         if ($this->getHelper('Component\Amazon\Repricing')->isEnabled() &&
@@ -846,10 +932,11 @@ HTML;
                 $condition = '(' . $condition . ') OR ';
             }
 
-            if ($value['is_repricing'] === '0') {
-                $condition .= 'is_repricing IS NULL';
+            if ((int)$value['is_repricing'] == 1) {
+                $condition .= 'is_repricing = 1';
             } else {
-                $condition .= 'is_repricing > 0';
+                $partialFilter = \Ess\M2ePro\Model\Amazon\Listing\Product::VARIATION_PARENT_IS_REPRICING_STATE_PARTIAL;
+                $condition .= "(is_repricing = 0 OR variation_parent_repricing_state = {$partialFilter})";
             }
         }
 

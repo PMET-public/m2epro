@@ -27,7 +27,7 @@ class ListRules extends AbstractTab
             'hidden',
             [
                 'name' => 'synchronization[title]',
-                'value' => $this->getHelper('Data')->escapeHtml($this->getTitle())
+                'value' => $this->getTitle()
             ]
         );
 
@@ -229,10 +229,9 @@ HTML
             ]
         );
 
-        $fieldset->addField('list_advanced_rules_filters_notice',
+        $fieldset->addField('list_advanced_rules_filters_warning',
             self::MESSAGES,
             [
-                'container_id' => 'list_advanced_rules_filters_warning',
                 'messages' => [[
                     'type' => \Magento\Framework\Message\MessageInterface::TYPE_WARNING,
                     'content' => $this->__(

@@ -39,7 +39,7 @@ class Index extends \Ess\M2ePro\Controller\Adminhtml\Ebay\Listing
         }
 
         $this->getResultPage()->getConfig()->getTitle()->prepend($this->__('New Listing Creation'));
-        $this->setPageHelpLink('x/OQItAQ');
+        $this->setPageHelpLink('x/WwItAQ');
 
         return $this->getResult();
     }
@@ -126,7 +126,7 @@ class Index extends \Ess\M2ePro\Controller\Adminhtml\Ebay\Listing
             $post = $this->getRequest()->getPost();
 
             foreach ($templateNicks as $nick) {
-                $templateData = json_decode(base64_decode($post["template_{$nick}"]), true);
+                $templateData = $this->getHelper('Data')->jsonDecode(base64_decode($post["template_{$nick}"]));
 
                 $this->setSessionValue("template_id_{$nick}", $templateData['id']);
                 $this->setSessionValue("template_mode_{$nick}", $templateData['mode']);
@@ -186,7 +186,7 @@ class Index extends \Ess\M2ePro\Controller\Adminhtml\Ebay\Listing
 
             foreach ($templateNicks as $nick) {
                 // ---------------------------------------
-                $templateData = json_decode(base64_decode($post["template_{$nick}"]), true);
+                $templateData = $this->getHelper('Data')->jsonDecode(base64_decode($post["template_{$nick}"]));
                 // ---------------------------------------
 
                 $this->setSessionValue("template_id_{$nick}", $templateData['id']);
@@ -244,7 +244,7 @@ class Index extends \Ess\M2ePro\Controller\Adminhtml\Ebay\Listing
             $post = $this->getRequest()->getPost();
 
             foreach ($templateNicks as $nick) {
-                $templateData = json_decode(base64_decode($post["template_{$nick}"]), true);
+                $templateData = $this->getHelper('Data')->jsonDecode(base64_decode($post["template_{$nick}"]));
 
                 $this->setSessionValue("template_id_{$nick}", $templateData['id']);
                 $this->setSessionValue("template_mode_{$nick}", $templateData['mode']);
@@ -301,6 +301,14 @@ class Index extends \Ess\M2ePro\Controller\Adminhtml\Ebay\Listing
         $data['account_id'] = $this->getSessionValue('account_id');
         $data['marketplace_id'] = $this->getSessionValue('marketplace_id');
         $data['store_id'] = $this->getSessionValue('store_id');
+
+        /** @var \Ess\M2ePro\Model\Marketplace $marketplace */
+        $marketplace = $this->ebayFactory->getCachedObjectLoaded('Marketplace', $data['marketplace_id']);
+
+        $data['parts_compatibility_mode'] = null;
+        if ($marketplace->getChildObject()->isMultiMotorsEnabled()) {
+            $data['parts_compatibility_mode'] = \Ess\M2ePro\Model\Ebay\Listing::PARTS_COMPATIBILITY_MODE_KTYPES;
+        }
 
         $templateManager = $this->modelFactory->getObject('Ebay\Template\Manager');
 

@@ -12,8 +12,6 @@ class Handler extends \Ess\M2ePro\Model\Order\Shipment\Handler
 {
     private $ebayFactory;
 
-    private $activeRecordFactory;
-
     //########################################
 
     public function __construct(
@@ -24,8 +22,7 @@ class Handler extends \Ess\M2ePro\Model\Order\Shipment\Handler
     )
     {
         $this->ebayFactory = $ebayFactory;
-        $this->activeRecordFactory = $activeRecordFactory;
-        parent::__construct($helperFactory, $modelFactory);
+        parent::__construct($activeRecordFactory, $helperFactory, $modelFactory);
     }
 
     //########################################
@@ -43,19 +40,20 @@ class Handler extends \Ess\M2ePro\Model\Order\Shipment\Handler
         }
 
         if (empty($trackingDetails)) {
-            return $this->processOrder($order) ? self::HANDLE_RESULT_SUCCEEDED : self::HANDLE_RESULT_FAILED;
+            return $order->getChildObject()->updateShippingStatus()
+                ? self::HANDLE_RESULT_SUCCEEDED : self::HANDLE_RESULT_FAILED;
         }
 
         $itemsToShip = $this->getItemsToShip($order, $shipment);
 
         if (empty($itemsToShip) || count($itemsToShip) == $order->getItemsCollection()->getSize()) {
-            return $this->processOrder($order, $trackingDetails)
+            return $order->getChildObject()->updateShippingStatus($trackingDetails)
                 ? self::HANDLE_RESULT_SUCCEEDED : self::HANDLE_RESULT_FAILED;
         }
 
         $succeeded = true;
         foreach ($itemsToShip as $item) {
-            if ($this->processOrderItem($item, $trackingDetails)) {
+            if ($item->getChildObject()->updateShippingStatus($trackingDetails)) {
                 continue;
             }
 
@@ -66,41 +64,6 @@ class Handler extends \Ess\M2ePro\Model\Order\Shipment\Handler
     }
 
     //########################################
-
-    private function processOrder(\Ess\M2ePro\Model\Order $order, array $trackingDetails = array())
-    {
-        $changeParams = array(
-            'tracking_details' => $trackingDetails,
-        );
-        $this->createChange($order, $changeParams);
-
-        return $order->getChildObject()->updateShippingStatus($trackingDetails);
-    }
-
-    private function processOrderItem(\Ess\M2ePro\Model\Order\Item $item, array $trackingDetails)
-    {
-        $changeParams = array(
-            'tracking_details' => $trackingDetails,
-            'item_id' => $item->getId(),
-        );
-        $this->createChange($item->getOrder(), $changeParams);
-
-        return $item->getChildObject()->updateShippingStatus($trackingDetails);
-    }
-
-    // ---------------------------------------
-
-    private function createChange(\Ess\M2ePro\Model\Order $order, array $params)
-    {
-        $orderId   = $order->getId();
-        $action    =\Ess\M2ePro\Model\Order\Change::ACTION_UPDATE_SHIPPING;
-        $creator   =\Ess\M2ePro\Model\Order\Change::CREATOR_TYPE_OBSERVER;
-        $component =\Ess\M2ePro\Helper\Component\Ebay::NICK;
-
-        $this->activeRecordFactory->getObject('Order\Change')->create(
-            $orderId, $action, $creator, $component, $params
-        );
-    }
 
     private function getItemsToShip(\Ess\M2ePro\Model\Order $order, \Magento\Sales\Model\Order\Shipment $shipment)
     {

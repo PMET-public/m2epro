@@ -60,16 +60,16 @@ class InstallData implements InstallDataInterface
     {
         $this->installer = $setup;
 
-        if (!$this->helperFactory->getObject('Data\GlobalData')->getValue('is_install_process')) {
-            return;
-        }
-
         if ($this->helperFactory->getObject('Data\GlobalData')->getValue('is_setup_failed')) {
             return;
         }
 
+        if (!$this->helperFactory->getObject('Data\GlobalData')->getValue('is_install_process') ||
+            !$this->helperFactory->getObject('Data\GlobalData')->getValue('is_install_schema_completed')) {
+            return;
+        }
+
         if ($this->isInstalled()) {
-            $this->setMagentoResourceVersion($this->getModuleSetupVersion());
             return;
         }
 
@@ -82,16 +82,17 @@ class InstallData implements InstallDataInterface
         } catch (\Exception $exception) {
 
             $this->logger->error($exception, ['source' => 'InstallData']);
+            $this->helperFactory->getObject('Data\GlobalData')->setValue('is_setup_failed', true);
 
             $this->installer->endSetup();
-            $this->helperFactory->getObject('Data\GlobalData')->setValue('is_setup_failed', true);
             return;
         }
 
-        $this->installer->endSetup();
-
         $this->setModuleSetupCompleted();
         $this->setMagentoResourceVersion($this->getConfigVersion());
+
+        $this->helperFactory->getObject('Module\Maintenance\General')->disable();
+        $this->installer->endSetup();
     }
 
     //########################################
@@ -125,6 +126,7 @@ class InstallData implements InstallDataInterface
 
         $moduleConfigModifier = $this->getConfigModifier('module');
 
+        $moduleConfigModifier->insert(null, 'is_disabled', '0', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/cron/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/cron/', 'runner', 'magento', NULL);
         $moduleConfigModifier->insert('/cron/', 'last_access', NULL, 'Time of last cron synchronization');
@@ -134,7 +136,7 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert('/cron/service/', 'auth_key', NULL, NULL);
         $moduleConfigModifier->insert('/cron/service/', 'disabled', '0', NULL);
         $moduleConfigModifier->insert('/cron/magento/', 'disabled', '0', NULL);
-        $moduleConfigModifier->insert('/cron/service/', 'hostname', 'cron.m2epro.com', NULL);
+        $moduleConfigModifier->insert('/cron/service/', 'hostname_1', 'cron.m2epro.com', NULL);
         $moduleConfigModifier->insert('/cron/task/logs_clearing/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/cron/task/logs_clearing/', 'interval', '86400', 'in seconds');
         $moduleConfigModifier->insert('/cron/task/logs_clearing/', 'last_access', NULL, 'date of last access');
@@ -173,34 +175,53 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert(
             '/cron/task/connector_requester_pending_partial/', 'last_run', NULL, 'date of last run'
         );
-        $moduleConfigModifier->insert('/cron/task/amazon_actions/', 'mode', '1', '0 - disable, \r\n1 - enable');
-        $moduleConfigModifier->insert('/cron/task/amazon_actions/', 'interval', '60', 'in seconds');
-        $moduleConfigModifier->insert('/cron/task/amazon_actions/', 'last_access', NULL, 'date of last access');
-        $moduleConfigModifier->insert('/cron/task/amazon_actions/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert('/cron/task/amazon/actions/', 'mode', '1', '0 - disable, \r\n1 - enable');
+        $moduleConfigModifier->insert('/cron/task/amazon/actions/', 'interval', '60', 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/amazon/actions/', 'last_access', NULL, 'date of last access');
+        $moduleConfigModifier->insert('/cron/task/amazon/actions/', 'last_run', NULL, 'date of last run');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_update_settings/', 'mode', '1', '0 - disable, \r\n1 - enable'
+            '/cron/task/amazon/repricing_update_settings/', 'mode', '1', '0 - disable, \r\n1 - enable'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_update_settings/', 'interval', '3600', 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/amazon/repricing_update_settings/', 'interval', '3600', 'in seconds');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_update_settings/', 'last_access', NULL, 'date of last access'
+            '/cron/task/amazon/repricing_update_settings/', 'last_access', NULL, 'date of last access'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_update_settings/', 'last_run', NULL, 'date of last run');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_synchronization/', 'mode', '1', '0 - disable, \r\n1 - enable'
+            '/cron/task/amazon/repricing_update_settings/', 'last_run', NULL, 'date of last run'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_synchronization/', 'interval', '86400', 'in seconds');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_synchronization/', 'last_access', NULL, 'date of last access'
+            '/cron/task/amazon/repricing_synchronization_actual_price/', 'mode', 1, '0 - disable,\r\n1 - enable'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_synchronization/', 'last_run', NULL, 'date of last run');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_inspect_products/', 'mode', '1', '0 - disable, \r\n1 - enable'
+            '/cron/task/amazon/repricing_synchronization_actual_price/', 'interval', 3600, 'in seconds'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_inspect_products/', 'interval', '3600', 'in seconds');
         $moduleConfigModifier->insert(
-            '/cron/task/repricing_inspect_products/', 'last_access', NULL, 'date of last access'
+            '/cron/task/amazon/repricing_synchronization_actual_price/', 'last_run', NULL, 'date of last access'
         );
-        $moduleConfigModifier->insert('/cron/task/repricing_inspect_products/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_synchronization_general/', 'mode', '1', '0 - disable, \r\n1 - enable'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_synchronization_general/', 'interval', '86400', 'in seconds'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_synchronization_general/', 'last_access', NULL, 'date of last access'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_synchronization_general/', 'last_run', NULL, 'date of last run'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_inspect_products/', 'mode', '1', '0 - disable, \r\n1 - enable'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_inspect_products/', 'interval', '3600', 'in seconds'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_inspect_products/', 'last_access', NULL, 'date of last access'
+        );
+        $moduleConfigModifier->insert(
+            '/cron/task/amazon/repricing_inspect_products/', 'last_run', NULL, 'date of last run'
+        );
         $moduleConfigModifier->insert('/cron/task/synchronization/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/cron/task/synchronization/', 'interval', '300', 'in seconds');
         $moduleConfigModifier->insert('/cron/task/synchronization/', 'last_access', NULL, 'date of last access');
@@ -209,6 +230,22 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert('/cron/task/servicing/', 'interval', $servicingInterval, 'in seconds');
         $moduleConfigModifier->insert('/cron/task/servicing/', 'last_access', NULL, 'date of last access');
         $moduleConfigModifier->insert('/cron/task/servicing/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert('/cron/task/health_status/', 'mode', '1', '0 - disable, \r\n1 - enable');
+        $moduleConfigModifier->insert('/cron/task/health_status/', 'interval', '3600', 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/health_status/', 'last_access', NULL, 'date of last access');
+        $moduleConfigModifier->insert('/cron/task/health_status/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert(
+            '/cron/task/archive_orders_entities/', 'mode', '1', '0 - disable, \r\n1 - enable'
+        );
+        $moduleConfigModifier->insert('/cron/task/archive_orders_entities/', 'interval', '3600', 'in seconds');
+        $moduleConfigModifier->insert(
+            '/cron/task/archive_orders_entities/', 'last_access', NULL, 'date of last access'
+        );
+        $moduleConfigModifier->insert('/cron/task/archive_orders_entities/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert('/cron/task/issues_resolver/', 'mode', '1', '0 - disable, \r\n1 - enable');
+        $moduleConfigModifier->insert('/cron/task/issues_resolver/', 'interval', '3600', 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/issues_resolver/', 'last_access', NULL, 'date of last access');
+        $moduleConfigModifier->insert('/cron/task/issues_resolver/', 'last_run', NULL, 'date of last run');
         $moduleConfigModifier->insert('/logs/clearing/listings/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/logs/clearing/listings/', 'days', '30', 'in days');
         $moduleConfigModifier->insert('/logs/clearing/other_listings/', 'mode', '1', '0 - disable, \r\n1 - enable');
@@ -232,10 +269,10 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert('/support/', 'contact_email', 'support@m2epro.com', NULL);
         $moduleConfigModifier->insert('/view/', 'show_block_notices', '1', '0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert('/view/', 'show_products_thumbnails', '1', 'Visibility thumbnails into grid');
+        $moduleConfigModifier->insert('/magento/attribute/','price_type_converting','0','0 - disable, \r\n1 - enable');
         $moduleConfigModifier->insert(
             '/view/products_grid/', 'use_alternative_mysql_select', '0', '0 - disable, \r\n1 - enable'
         );
-        $moduleConfigModifier->insert('/view/requirements/popup/', 'closed', '0', '0 - false, - true');
         $moduleConfigModifier->insert(
             '/view/synchronization/revise_total/', 'show', '0', '0 - disable, \r\n1 - enable'
         );
@@ -252,7 +289,6 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert('/view/ebay/motors_epids_attribute/', 'listing_notification_shown', '0', NULL);
         $moduleConfigModifier->insert('/view/ebay/multi_currency_marketplace_2/', 'notification_shown', '0', NULL);
         $moduleConfigModifier->insert('/view/ebay/multi_currency_marketplace_19/', 'notification_shown', '0', NULL);
-        $moduleConfigModifier->insert('/view/ebay/terapeak/', 'mode', '1', NULL);
         $moduleConfigModifier->insert('/debug/exceptions/', 'send_to_server', '1', '0 - disable,\r\n1 - enable');
         $moduleConfigModifier->insert('/debug/exceptions/', 'filters_mode', '0', '0 - disable,\r\n1 - enable');
         $moduleConfigModifier->insert('/debug/fatal_error/', 'send_to_server', '1', '0 - disable,\r\n1 - enable');
@@ -274,6 +310,9 @@ class InstallData implements InstallDataInterface
             '/magento/product/simple_type/', 'custom_types', '', 'Magento product custom types'
         );
         $moduleConfigModifier->insert(
+            '/magento/product/downloadable_type/', 'custom_types', '', 'Magento product custom types'
+        );
+        $moduleConfigModifier->insert(
             '/magento/product/configurable_type/', 'custom_types', '', 'Magento product custom types'
         );
         $moduleConfigModifier->insert(
@@ -282,6 +321,9 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert(
             '/magento/product/grouped_type/', 'custom_types', '', 'Magento product custom types'
         );
+        $moduleConfigModifier->insert('/health_status/notification/', 'mode', 1);
+        $moduleConfigModifier->insert('/health_status/notification/', 'email', '');
+        $moduleConfigModifier->insert('/health_status/notification/', 'level', 40);
 
         $synchronizationConfigModifier = $this->getConfigModifier('synchronization');
 
@@ -330,6 +372,25 @@ class InstallData implements InstallDataInterface
         $synchronizationConfigModifier->insert('/global/stop_queue/', 'interval', '3600', 'in seconds');
         $synchronizationConfigModifier->insert('/global/stop_queue/', 'last_time', NULL, 'Last check time');
 
+        $synchronizationConfigModifier->insert(
+            '/ebay/templates/synchronization/list/immediately_not_checked/', 'items_limit', '200', NULL
+        );
+        $synchronizationConfigModifier->insert(
+            '/ebay/templates/synchronization/revise/total/', 'items_limit', '200', NULL
+        );
+        $synchronizationConfigModifier->insert(
+            '/ebay/templates/synchronization/revise/need_synch/', 'items_limit', '200', NULL
+        );
+        $synchronizationConfigModifier->insert(
+            '/amazon/templates/synchronization/list/immediately_not_checked/', 'items_limit', '200', NULL
+        );
+        $synchronizationConfigModifier->insert(
+            '/amazon/templates/synchronization/revise/total/', 'items_limit', '200', NULL
+        );
+        $synchronizationConfigModifier->insert(
+            '/amazon/templates/synchronization/revise/need_synch/', 'items_limit', '200', NULL
+        );
+
         $this->getConnection()->insertMultiple($this->getFullTableName('wizard'), [
             [
                 'nick'     => 'migrationFromMagento1',
@@ -372,23 +433,25 @@ class InstallData implements InstallDataInterface
         $moduleConfigModifier->insert(
             '/view/ebay/template/category/', 'use_last_specifics', '0', '0 - false, \r\n1 - true'
         );
-        $moduleConfigModifier->insert('/ebay/motors/', 'epids_attribute', NULL, NULL);
+        $moduleConfigModifier->insert('/ebay/motors/', 'epids_motor_attribute', NULL, NULL);
+        $moduleConfigModifier->insert('/ebay/motors/', 'epids_uk_attribute', NULL, NULL);
+        $moduleConfigModifier->insert('/ebay/motors/', 'epids_de_attribute', NULL, NULL);
         $moduleConfigModifier->insert('/ebay/motors/', 'ktypes_attribute', NULL, NULL);
         $moduleConfigModifier->insert('/ebay/sell_on_another_marketplace/', 'tutorial_shown', '0', NULL);
         $moduleConfigModifier->insert('/ebay/translation_services/gold/', 'avg_cost', '7.21', NULL);
         $moduleConfigModifier->insert('/ebay/translation_services/silver/', 'avg_cost', '1.21', NULL);
         $moduleConfigModifier->insert('/ebay/translation_services/platinum/', 'avg_cost', '17.51', NULL);
         $moduleConfigModifier->insert('/ebay/description/', 'upload_images_mode', 2, NULL);
-        $moduleConfigModifier->insert('/cron/task/ebay_actions/', 'mode', '1', '0 - disable, \r\n1 - enable');
-        $moduleConfigModifier->insert('/cron/task/ebay_actions/', 'interval', '60', 'in seconds');
-        $moduleConfigModifier->insert('/cron/task/ebay_actions/', 'last_access', NULL, 'date of last access');
-        $moduleConfigModifier->insert('/cron/task/ebay_actions/', 'last_run', NULL, 'date of last run');
+        $moduleConfigModifier->insert('/cron/task/ebay/actions/', 'mode', '1', '0 - disable, \r\n1 - enable');
+        $moduleConfigModifier->insert('/cron/task/ebay/actions/', 'interval', '60', 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/ebay/actions/', 'last_access', NULL, 'date of last access');
+        $moduleConfigModifier->insert('/cron/task/ebay/actions/', 'last_run', NULL, 'date of last run');
         $moduleConfigModifier->insert(
-            '/cron/task/update_ebay_accounts_preferences/', 'mode', 1, '0 - disable,\r\n1 - enable'
+            '/cron/task/ebay/update_accounts_preferences/', 'mode', 1, '0 - disable,\r\n1 - enable'
         );
-        $moduleConfigModifier->insert('/cron/task/update_ebay_accounts_preferences/', 'interval', 86400, 'in seconds');
+        $moduleConfigModifier->insert('/cron/task/ebay/update_accounts_preferences/', 'interval', 86400, 'in seconds');
         $moduleConfigModifier->insert(
-            '/cron/task/update_ebay_accounts_preferences/', 'last_run', NULL, 'date of last run'
+            '/cron/task/ebay/update_accounts_preferences/', 'last_run', NULL, 'date of last run'
         );
         $moduleConfigModifier->insert('/ebay/in_store_pickup/', 'mode', 0, '0 - disable,\r\n1 - enable');
 
@@ -461,6 +524,7 @@ class InstallData implements InstallDataInterface
         $synchronizationConfigModifier->insert(
             '/ebay/other_listings/update/', 'mode', '1', '0 - disable, \r\n1 - enable'
         );
+        $synchronizationConfigModifier->insert('/ebay/other_listings/update/', 'interval', '3600', 'in seconds');
         $synchronizationConfigModifier->insert('/ebay/other_listings/sku/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $synchronizationConfigModifier->insert('/ebay/templates/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $synchronizationConfigModifier->insert(
@@ -601,7 +665,7 @@ class InstallData implements InstallDataInterface
                 'native_id'      => 100,
                 'title'          => 'eBay Motors',
                 'code'           => 'eBayMotors',
-                'url'            => 'motors.ebay.com',
+                'url'            => 'ebay.com/motors',
                 'status'         => 0,
                 'sorder'         => 23,
                 'group_title'    => 'Other',
@@ -787,7 +851,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'us',
                 'language_code'                        => 'en_US',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 1,
                 'is_calculated_shipping'               => 1,
@@ -805,15 +868,16 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 1,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 2,
-                'currency'                             => 'CAD,USD',
+                'currency'                             => 'CAD',
                 'origin_country'                       => 'ca',
                 'language_code'                        => 'en_CA',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 1,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 1,
                 'is_calculated_shipping'               => 1,
@@ -831,7 +895,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 3,
@@ -839,7 +905,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'gb',
                 'language_code'                        => 'en_GB',
                 'translation_service_mode'             => 3,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 1,
                 'is_calculated_shipping'               => 0,
@@ -857,7 +922,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 1,
                 'is_in_store_pickup'                   => 1,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 1,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 4,
@@ -865,7 +932,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'au',
                 'language_code'                        => 'en_AU',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 1,
                 'is_calculated_shipping'               => 1,
@@ -883,7 +949,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 1,
                 'is_in_store_pickup'                   => 1,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 5,
@@ -891,7 +959,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'at',
                 'language_code'                        => 'de_AT',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -909,7 +976,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 6,
@@ -917,7 +986,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'be',
                 'language_code'                        => 'nl_BE',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -935,7 +1003,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 7,
@@ -943,7 +1013,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'fr',
                 'language_code'                        => 'fr_FR',
                 'translation_service_mode'             => 1,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -961,7 +1030,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 8,
@@ -969,7 +1040,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'de',
                 'language_code'                        => 'de_DE',
                 'translation_service_mode'             => 3,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -987,7 +1057,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 1,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 9,
@@ -995,7 +1067,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'us',
                 'language_code'                        => 'en_US',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 1,
@@ -1013,7 +1084,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 1,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 10,
@@ -1021,7 +1094,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'it',
                 'language_code'                        => 'it_IT',
                 'translation_service_mode'             => 1,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1039,7 +1111,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 11,
@@ -1047,7 +1121,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'be',
                 'language_code'                        => 'fr_BE',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1065,7 +1138,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 12,
@@ -1073,7 +1148,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'nl',
                 'language_code'                        => 'nl_NL',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1091,7 +1165,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 13,
@@ -1099,7 +1175,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'es',
                 'language_code'                        => 'es_ES',
                 'translation_service_mode'             => 1,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1117,7 +1192,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 1
             ],
             [
                 'marketplace_id'                       => 14,
@@ -1125,7 +1202,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'ch',
                 'language_code'                        => 'fr_CH',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1143,7 +1219,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 15,
@@ -1151,7 +1229,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'hk',
                 'language_code'                        => 'zh_HK',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1169,7 +1246,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 16,
@@ -1177,7 +1256,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'in',
                 'language_code'                        => 'hi_IN',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1195,7 +1273,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 17,
@@ -1203,7 +1283,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'ie',
                 'language_code'                        => 'en_IE',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1221,7 +1300,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 18,
@@ -1229,7 +1310,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'my',
                 'language_code'                        => 'ms_MY',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1247,15 +1327,16 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 19,
-                'currency'                             => 'CAD,USD',
+                'currency'                             => 'CAD',
                 'origin_country'                       => 'ca',
                 'language_code'                        => 'fr_CA',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 1,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 1,
                 'is_calculated_shipping'               => 1,
@@ -1273,7 +1354,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 1
+                'is_holiday_return'                    => 1,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 20,
@@ -1281,7 +1364,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'ph',
                 'language_code'                        => 'fil_PH',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 1,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1299,7 +1381,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 21,
@@ -1307,7 +1391,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'pl',
                 'language_code'                        => 'pl_PL',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1325,7 +1408,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ],
             [
                 'marketplace_id'                       => 22,
@@ -1333,7 +1418,6 @@ class InstallData implements InstallDataInterface
                 'origin_country'                       => 'sg',
                 'language_code'                        => 'zh_SG',
                 'translation_service_mode'             => 0,
-                'is_multi_currency'                    => 0,
                 'is_multivariation'                    => 0,
                 'is_freight_shipping'                  => 0,
                 'is_calculated_shipping'               => 0,
@@ -1351,7 +1435,9 @@ class InstallData implements InstallDataInterface
                 'is_charity'                           => 1,
                 'is_click_and_collect'                 => 0,
                 'is_in_store_pickup'                   => 0,
-                'is_holiday_return'                    => 0
+                'is_holiday_return'                    => 0,
+                'is_epid'                              => 0,
+                'is_ktype'                             => 0
             ]
         ]);
     }
@@ -1373,6 +1459,8 @@ class InstallData implements InstallDataInterface
             'base_url', 'https://repricer.m2epro.com/connector/m2epro/',
             'Repricing Tool base url'
         );
+
+        $moduleConfigModifier->insert('/amazon/business/', 'mode', '0', '0 - disable, \r\n1 - enable');
 
         $synchronizationConfigModifier = $this->getConfigModifier('synchronization');
 
@@ -1434,6 +1522,12 @@ class InstallData implements InstallDataInterface
             '/amazon/orders/reserve_cancellation/', 'last_time', NULL, 'Last check time'
         );
         $synchronizationConfigModifier->insert('/amazon/orders/update/', 'mode', '1', 'in seconds');
+        $synchronizationConfigModifier->insert('/amazon/orders/update/', 'interval', 1800, 'in seconds');
+        $synchronizationConfigModifier->insert(
+            '/amazon/orders/receive_details/', 'mode', 0, '0 - disable, \r\n1 - enable'
+        );
+        $synchronizationConfigModifier->insert('/amazon/orders/receive_details/', 'interval', 3600, 'in seconds');
+        $synchronizationConfigModifier->insert('/amazon/orders/receive_details/', 'last_time', NULL, 'Last check time');
         $synchronizationConfigModifier->insert('/amazon/other_listings/', 'mode', '1', '0 - disable, \r\n1 - enable');
         $synchronizationConfigModifier->insert(
             '/amazon/other_listings/update/', 'mode', '1', '0 - disable, \r\n1 - enable'
@@ -1572,58 +1666,134 @@ class InstallData implements InstallDataInterface
                 'component_mode' => 'amazon',
                 'update_date'    => '2013-05-08 00:00:00',
                 'create_date'    => '2013-05-08 00:00:00'
+            ],
+            [
+                'id'             => 34,
+                'native_id'      => 9,
+                'title'          => 'Mexico',
+                'code'           => 'MX',
+                'url'            => 'amazon.com.mx',
+                'status'         => 0,
+                'sorder'         => 8,
+                'group_title'    => 'America',
+                'component_mode' => 'amazon',
+                'update_date'    => '2017-10-17 00:00:00',
+                'create_date'    => '2017-10-17 00:00:00'
+            ],
+            [
+                'id'             => 35,
+                'native_id'      => 10,
+                'title'          => 'Australia',
+                'code'           => 'AU',
+                'url'            => 'amazon.com.au',
+                'status'         => 0,
+                'sorder'         => 1,
+                'group_title'    => 'Asia / Pacific',
+                'component_mode' => 'amazon',
+                'update_date'    => '2017-10-17 00:00:00',
+                'create_date'    => '2017-10-17 00:00:00'
             ]
         ]);
 
         $this->getConnection()->insertMultiple($this->getFullTableName('amazon_marketplace'), [
             [
-                'marketplace_id'                    => 24,
-                'developer_key'                     => '8636-1433-4377',
-                'default_currency'                  => 'CAD',
-                'is_asin_available'                 => 0,
-                'is_merchant_fulfillment_available' => 0
+                'marketplace_id'                          => 24,
+                'developer_key'                           => '8636-1433-4377',
+                'default_currency'                        => 'CAD',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 0,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 25,
-                'developer_key'                     => '7078-7205-1944',
-                'default_currency'                  => 'EUR',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 1
+                'marketplace_id'                          => 25,
+                'developer_key'                           => '7078-7205-1944',
+                'default_currency'                        => 'EUR',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 1,
+                'is_business_available'                   => 1,
+                'is_vat_calculation_service_available'    => 1,
+                'is_product_tax_code_policy_available'    => 1,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 26,
-                'developer_key'                     => '7078-7205-1944',
-                'default_currency'                  => 'EUR',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 0
+                'marketplace_id'                          => 26,
+                'developer_key'                           => '7078-7205-1944',
+                'default_currency'                        => 'EUR',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 1,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 28,
-                'developer_key'                     => '7078-7205-1944',
-                'default_currency'                  => 'GBP',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 1
+                'marketplace_id'                          => 28,
+                'developer_key'                           => '7078-7205-1944',
+                'default_currency'                        => 'GBP',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 1,
+                'is_business_available'                   => 1,
+                'is_vat_calculation_service_available'    => 1,
+                'is_product_tax_code_policy_available'    => 1,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 29,
-                'developer_key'                     => '8636-1433-4377',
-                'default_currency'                  => 'USD',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 1
+                'marketplace_id'                          => 29,
+                'developer_key'                           => '8636-1433-4377',
+                'default_currency'                        => 'USD',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 1,
+                'is_business_available'                   => 1,
+                'is_vat_calculation_service_available'    => 0,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 30,
-                'developer_key'                     => '7078-7205-1944',
-                'default_currency'                  => 'EUR',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 0
+                'marketplace_id'                          => 30,
+                'developer_key'                           => '7078-7205-1944',
+                'default_currency'                        => 'EUR',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 1,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
             ],
             [
-                'marketplace_id'                    => 31,
-                'developer_key'                     => '7078-7205-1944',
-                'default_currency'                  => 'EUR',
-                'is_asin_available'                 => 1,
-                'is_merchant_fulfillment_available' => 0
+                'marketplace_id'                          => 31,
+                'developer_key'                           => '7078-7205-1944',
+                'default_currency'                        => 'EUR',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 1,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
+            ],
+            [
+                'marketplace_id'                          => 34,
+                'developer_key'                           => '8636-1433-4377',
+                'default_currency'                        => 'MXN',
+                'is_new_asin_available'                   => 0,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 0,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 1,
+            ],
+            [
+                'marketplace_id'                          => 35,
+                'developer_key'                           => '2770-5005-3793',
+                'default_currency'                        => 'AUD',
+                'is_new_asin_available'                   => 1,
+                'is_merchant_fulfillment_available'       => 0,
+                'is_business_available'                   => 0,
+                'is_vat_calculation_service_available'    => 0,
+                'is_product_tax_code_policy_available'    => 0,
+                'is_automatic_token_retrieving_available' => 0,
             ]
         ]);
     }
@@ -1636,30 +1806,17 @@ class InstallData implements InstallDataInterface
             return false;
         }
 
-        $completedSetupRows = $this->getConnection()->select()
+        $setupRow = $this->getConnection()->select()
             ->from($this->getFullTableName('setup'))
+            ->where('version_from IS NULL')
             ->where('is_completed = ?', 1)
             ->query()
-            ->fetchAll();
+            ->fetch();
 
-        return count($completedSetupRows) > 0;
+        return $setupRow !== false;
     }
 
     // ---------------------------------------
-
-    private function getModuleSetupVersion()
-    {
-        if (!$this->isInstalled()) {
-            return NULL;
-        }
-
-        $setupRows = $this->getConnection()->select()
-            ->from($this->getFullTableName('setup'))
-            ->order(array('id ASC'))
-            ->query()->fetchAll();
-
-        return end($setupRows)['version_to'];
-    }
 
     private function getConfigVersion()
     {

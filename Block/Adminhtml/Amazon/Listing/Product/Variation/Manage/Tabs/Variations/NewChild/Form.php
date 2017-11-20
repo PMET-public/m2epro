@@ -98,7 +98,7 @@ HTML;
             $i++;
         }
 
-        $productVariationsTree = json_encode($this->getProductVariationsTree());
+        $productVariationsTree = $this->getHelper('Data')->jsonEncode($this->getProductVariationsTree());
 
         $html .= <<<HTML
     <tr id="new_child_product_product_options_error_row">
@@ -195,7 +195,7 @@ HTML;
             $i++;
         }
 
-        $channelVariationsTree = json_encode($this->getChannelVariationsTree());
+        $channelVariationsTree = $this->getHelper('Data')->jsonEncode($this->getChannelVariationsTree());
 
         $html .= <<<HTML
         <tr id="new_child_product_channel_options_error_row">
@@ -312,7 +312,7 @@ CSS
 
     public function hasUnusedChannelVariations()
     {
-        return count($this->getUsedChannelVariations()) < count($this->getCurrentChannelVariations());
+        return (bool)$this->getUnusedChannelVariations();
     }
 
     // ---------------------------------------
@@ -339,35 +339,20 @@ CSS
 
     public function getUnusedProductVariations()
     {
-        return $this->getUnusedVariations($this->getCurrentProductVariations(), $this->getUsedProductVariations());
+        return $this->getListingProduct()
+            ->getChildObject()
+            ->getVariationManager()
+            ->getTypeModel()
+            ->getUnusedProductOptions();
     }
 
     public function getUnusedChannelVariations()
     {
-        return $this->getUnusedVariations($this->getCurrentChannelVariations(), $this->getUsedChannelVariations());
-    }
-
-    private function getUnusedVariations($currentVariations, $usedVariations)
-    {
-        if (empty($currentVariations)) {
-            return array();
-        }
-
-        if (empty($usedVariations)) {
-            return $currentVariations;
-        }
-
-        $unusedOptions = array();
-
-        foreach ($currentVariations as $id => $currentOption) {
-            if ($this->isVariationExistsInArray($currentOption, $usedVariations)) {
-                continue;
-            }
-
-            $unusedOptions[$id] = $currentOption;
-        }
-
-        return $unusedOptions;
+        return $this->getListingProduct()
+            ->getChildObject()
+            ->getVariationManager()
+            ->getTypeModel()
+            ->getUnusedChannelOptions();
     }
 
     private function isVariationExistsInArray(array $needle, array $haystack)
@@ -453,42 +438,20 @@ CSS
 
     public function getUsedChannelVariations()
     {
-        $usedOptions = array();
-
-        foreach ($this->getChildListingProducts() as $childListingProduct) {
-            /** @var \Ess\M2ePro\Model\Listing\Product $childListingProduct */
-
-            /** @var ChildRelation $childTypeModel */
-            $childTypeModel = $childListingProduct->getChildObject()->getVariationManager()->getTypeModel();
-
-            if (!$childTypeModel->isVariationChannelMatched()) {
-                continue;
-            }
-
-            $usedOptions[] = $childTypeModel->getChannelOptions();
-        }
-
-        return $usedOptions;
+        return $this->getListingProduct()
+            ->getChildObject()
+            ->getVariationManager()
+            ->getTypeModel()
+            ->getUsedChannelOptions();
     }
 
     public function getUsedProductVariations()
     {
-        $usedOptions = array();
-
-        foreach ($this->getChildListingProducts() as $childListingProduct) {
-            /** @var \Ess\M2ePro\Model\Listing\Product $childListingProduct */
-
-            /** @var ChildRelation $childTypeModel */
-            $childTypeModel = $childListingProduct->getChildObject()->getVariationManager()->getTypeModel();
-
-            if (!$childTypeModel->isVariationProductMatched()) {
-                continue;
-            }
-
-            $usedOptions[] = $childTypeModel->getProductOptions();
-        }
-
-        return $usedOptions;
+        return $this->getListingProduct()
+            ->getChildObject()
+            ->getVariationManager()
+            ->getTypeModel()
+            ->getUsedProductOptions();
     }
 
     // ---------------------------------------
@@ -528,7 +491,7 @@ CSS
             );
 
             if (empty($unusedVariations)) {
-                $this->channelVariationsTree = new stdClass();
+                $this->channelVariationsTree = new \stdClass();
 
                 return $this->channelVariationsTree;
             }
@@ -597,7 +560,9 @@ CSS
                 $return[$currentAttribute][$option] = $result;
             }
 
-            ksort($return[$currentAttribute]);
+            if ($return !== false) {
+                ksort($return[$currentAttribute]);
+            }
 
             return $return;
         }
@@ -640,7 +605,9 @@ CSS
             return false;
         }
 
-        ksort($return[$currentAttribute]);
+        if ($return !== false) {
+            ksort($return[$currentAttribute]);
+        }
 
         return $return;
     }

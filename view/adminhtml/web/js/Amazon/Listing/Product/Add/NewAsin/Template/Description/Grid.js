@@ -110,7 +110,7 @@ define([
                 onSuccess: function (transport) {
 
                     if (!transport.responseText.isJSON()) {
-                        alert(transport.responseText);
+                        self.alert(transport.responseText);
                         return;
                     }
 
@@ -147,14 +147,14 @@ define([
                 onSuccess: function (transport) {
 
                     if (!transport.responseText.isJSON()) {
-                        alert(transport.responseText);
+                        self.alert(transport.responseText);
                         return;
                     }
 
                     var response = transport.responseText.evalJSON();
 
                     if (response.type == 'success') {
-                        self.templateDescriptionHandler.unassignFromTemplateDescrition(productsIds);
+                        self.templateDescriptionHandler.unassignFromTemplateDescription(productsIds);
                     }
                 }
             });
@@ -171,7 +171,7 @@ define([
                 },
                 onSuccess: function (transport) {
                     if (!transport.responseText.isJSON()) {
-                        alert(transport.responseText);
+                        self.alert(transport.responseText);
                         return;
                     }
 
@@ -194,7 +194,7 @@ define([
                         setLocation(url);
                     } else {
                         if (!transport.responseText.isJSON()) {
-                            alert(transport.responseText);
+                            self.alert(transport.responseText);
                             return;
                         }
 
@@ -218,7 +218,7 @@ define([
                         setLocation(url);
                     } else {
                         if (!transport.responseText.isJSON()) {
-                            alert(transport.responseText);
+                            self.alert(transport.responseText);
                             return;
                         }
 
@@ -237,9 +237,15 @@ define([
                         modal({
                             title: M2ePro.translator.translate('setDescriptionPolicy'),
                             type: 'popup',
-                            buttons: [{
+                            buttons: [ {
+                                text: M2ePro.translator.translate('Cancel'),
+                                class: 'action-secondary action-dismiss',
+                                click: function () {
+                                    self.skipPopup.modal('closeModal');
+                                }
+                            }, {
                                 text: M2ePro.translator.translate('Continue'),
-                                class: 'action primary',
+                                class: 'action-primary action-accept',
                                 click: function () {
                                     setLocation(response.continueUrl);
                                     self.skipPopup.modal('closeModal');

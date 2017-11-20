@@ -10,7 +10,9 @@ class TryToMoveToListing extends Listing
     public function execute()
     {
         $componentMode = $this->getRequest()->getParam('componentMode');
-        $selectedProducts = (array)json_decode($this->getRequest()->getParam('selectedProducts'));
+        $selectedProducts = (array)$this->getHelper('Data')->jsonDecode(
+            $this->getRequest()->getParam('selectedProducts')
+        );
         $listingId = (int)$this->getRequest()->getParam('listingId');
 
         $listingInstance = $this->parentFactory->getCachedObjectLoaded(
@@ -23,7 +25,13 @@ class TryToMoveToListing extends Listing
                 $componentMode, 'Listing\Other' ,$selectedProduct
             );
 
-            if (!$listingInstance->getChildObject()->addProductFromOther($otherListingProductInstance,true,false)) {
+            $listingProduct = $listingInstance
+                ->getChildObject()
+                ->addProductFromOther(
+                    $otherListingProductInstance, \Ess\M2ePro\Helper\Data::INITIATOR_USER, true, false
+                );
+
+            if (!$listingProduct) {
                 $failedProducts[] = $otherListingProductInstance->getProductId();
             }
         }

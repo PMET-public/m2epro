@@ -42,14 +42,12 @@ class ListRules extends AbstractForm
             [
                 'content' => $this->__(
                     <<<HTML
-                    <p><strong>List Action</strong> - this Action can be executed for each Item in M2E Pro
-                    Listings which has Not Listed Status and which Settings meet the List Condition.
-                    If an Item was not initially Listed for some reason, automatic synchronization will attempt
-                    to list it again only if there is a change of Product Status, Stock Availability or Quantity
-                    in Magento.</p><br>
-                    <p><strong>Note:</strong> M2E Pro Listings Synchronization must be enabled in
-                    Synchronization <strong>(Amazon Integration > Configuration > Settings > Synchronization)</strong>.
-                    Otherwise, Synchronization Policy Rules will not take effect.</p><br>
+                    <p>If <strong>List Action</strong> is enabled, each new Item in M2E Pro Listing, that
+                    has Not Listed status and the settings met specified List Conditions,
+                    will be listed automatically</p><br/>
+                    <p><strong>Note:</strong> M2E Pro Listings Synchronization must be enabled
+                    <strong>(Amazon Integration > Configuration > Settings > Synchronization)</strong>.
+                    Otherwise, Synchronization Policy Rules will not take effect.</p><br/>
                     <p>More detailed information about how to work with this Page you can find
                     <a href="%url%" target="_blank" class="external-link">here</a>.</p>
 HTML
@@ -236,10 +234,9 @@ HTML
             ]
         );
 
-        $fieldset->addField('list_advanced_rules_filters_notice',
+        $fieldset->addField('list_advanced_rules_filters_warning',
             self::MESSAGES,
             [
-                'container_id' => 'list_advanced_rules_filters_warning',
                 'messages' => [[
                     'type' => \Magento\Framework\Message\MessageInterface::TYPE_WARNING,
                     'content' => $this->__(

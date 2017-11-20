@@ -37,14 +37,15 @@ class RunReviseAll extends Settings
         $synchConfig = $this->modelFactory->getObject('Config\Manager\Synchronization');
 
         $synchConfig->setGroupValue(
-            '/amazon/templates/revise/total/', 'start_date', $startDate
+            '/amazon/templates/synchronization/revise/total/', 'start_date', $startDate
         );
         $synchConfig->setGroupValue(
-            '/amazon/templates/revise/total/', 'last_listing_product_id', 0
+            '/amazon/templates/synchronization/revise/total/', 'last_listing_product_id', 0
         );
 
-        $this->setAjaxContent(json_encode(array(
-            'start_date' => $this->localeDate->formatDate($startDate, \IntlDateFormatter::MEDIUM))), false);
+        $this->setJsonContent(array(
+            'start_date' => $this->localeDate->formatDate($startDate, \IntlDateFormatter::MEDIUM)
+        ));
     }
 
     //########################################

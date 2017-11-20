@@ -61,18 +61,15 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         $collection = $this->magentoProductCollectionFactory->create();
 
         $collection->setListingProductModeOn();
-        $collection->addAttributeToSelect('sku');
-        $collection->addAttributeToSelect('name');
+        $collection->setListing($this->listing->getId());
 
-        $collection->joinTable(
-            array('cisi' => 'cataloginventory_stock_item'),
-            'product_id=entity_id',
-            array(
-                'qty' => 'qty'
-            ),
-            '{{table}}.stock_id=1',
-            'left'
-        );
+        if ($this->isFilterOrSortByPriceIsUsed(null, 'amazon_online_price')) {
+            $collection->setIsNeedToUseIndexerParent(true);
+        }
+
+        $collection->addAttributeToSelect('name')
+            ->addAttributeToSelect('sku')
+            ->joinStockItem();
 
         // ---------------------------------------
 
@@ -98,8 +95,10 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             array('alp' => $alpTable),
             'listing_product_id=id',
             array(
+                'template_shipping_template_id'  => 'template_shipping_template_id',
                 'template_shipping_override_id'  => 'template_shipping_override_id',
                 'template_description_id'        => 'template_description_id',
+                'template_product_tax_code_id'   => 'template_product_tax_code_id',
                 'general_id'                     => 'general_id',
                 'general_id_search_info'         => 'general_id_search_info',
                 'search_settings_status'         => 'search_settings_status',
@@ -107,88 +106,25 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 'variation_child_statuses'       => 'variation_child_statuses',
                 'amazon_sku'                     => 'sku',
                 'online_qty'                     => 'online_qty',
-                'online_price'                   => 'online_price',
-                'online_sale_price'              => 'IF(
-                  `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                  `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                  `alp`.`online_sale_price`,
+                'online_regular_price'           => 'online_regular_price',
+                 'online_regular_sale_price'      => 'IF(
+                  `alp`.`online_regular_sale_price_start_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` IS NOT NULL AND
+                  `alp`.`online_regular_sale_price_end_date` >= CURRENT_DATE(),
+                  `alp`.`online_regular_sale_price`,
                   NULL
                 )',
-                'online_sale_price_start_date'   => 'online_sale_price_start_date',
-                'online_sale_price_end_date'     => 'online_sale_price_end_date',
-                'is_afn_channel'                 => 'is_afn_channel',
-                // todo uncomment when alp table will have is_repricing field
-                //'is_repricing'                   => 'is_repricing',
-                'is_general_id_owner'            => 'is_general_id_owner',
-                'is_variation_parent'            => 'is_variation_parent',
-                'defected_messages'              => 'defected_messages',
-                'min_online_price'                      => 'IF(
-                    (`t`.`variation_min_price` IS NULL),
-                    IF(
-                      `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                      `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                      `alp`.`online_sale_price`,
-                      `alp`.`online_price`
-                    ),
-                    `t`.`variation_min_price`
-                )',
-                'max_online_price'                      => 'IF(
-                    (`t`.`variation_max_price` IS NULL),
-                    IF(
-                      `alp`.`online_sale_price_start_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_end_date` IS NOT NULL AND
-                      `alp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                      `alp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                      `alp`.`online_sale_price`,
-                      `alp`.`online_price`
-                    ),
-                    `t`.`variation_max_price`
-                )'
+                'online_regular_sale_price_start_date'   => 'online_regular_sale_price_start_date',
+                'online_regular_sale_price_end_date'     => 'online_regular_sale_price_end_date',
+                'is_afn_channel'                   => 'is_afn_channel',
+                'is_repricing'                     => 'is_repricing',
+                'is_general_id_owner'              => 'is_general_id_owner',
+                'is_variation_parent'              => 'is_variation_parent',
+                'variation_parent_afn_state'       => 'variation_parent_afn_state',
+                'variation_parent_repricing_state' => 'variation_parent_repricing_state',
+                'defected_messages'                => 'defected_messages'
             ),
             '{{table}}.variation_parent_id is NULL'
-        );
-
-        $collection->getSelect()->joinLeft(
-            new \Zend_Db_Expr('(
-                SELECT
-                    `malp`.`variation_parent_id`,
-                    MIN(
-                        IF(
-                            `malp`.`online_sale_price_start_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_end_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                            `malp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                            `malp`.`online_sale_price`,
-                            `malp`.`online_price`
-                        )
-                    ) as variation_min_price,
-                    MAX(
-                        IF(
-                            `malp`.`online_sale_price_start_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_end_date` IS NOT NULL AND
-                            `malp`.`online_sale_price_start_date` <= CURRENT_DATE() AND
-                            `malp`.`online_sale_price_end_date` >= CURRENT_DATE(),
-                            `malp`.`online_sale_price`,
-                            `malp`.`online_price`
-                        )
-                    ) as variation_max_price
-                FROM `'. $alpTable .'` as malp
-                INNER JOIN `'. $lpTable .'` AS `mlp`
-                    ON (`malp`.`listing_product_id` = `mlp`.`id`)
-                WHERE `mlp`.`status` IN (
-                    ' . \Ess\M2ePro\Model\Listing\Product::STATUS_LISTED . ',
-                    ' . \Ess\M2ePro\Model\Listing\Product::STATUS_STOPPED . '
-                ) AND `malp`.`variation_parent_id` IS NOT NULL
-                GROUP BY `malp`.`variation_parent_id`
-            )'),
-            'alp.listing_product_id=t.variation_parent_id',
-            array(
-                'variation_min_price' => 'variation_min_price',
-                'variation_max_price' => 'variation_max_price',
-            )
         );
 
         $tdTable = $this->activeRecordFactory->getObject('Template\Description')->getResource()->getMainTable();
@@ -213,6 +149,40 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             null,
             'left'
         );
+
+        $tsTable = $this->activeRecordFactory->getObject('Amazon\Template\ShippingTemplate')
+            ->getResource()->getMainTable();
+        $collection->joinTable(
+            array('ts' => $tsTable),
+            'id=template_shipping_template_id',
+            array(
+                'template_shipping_template_title' => 'title'
+            ),
+            null,
+            'left'
+        );
+
+        $amazonAccount = $this->listing->getAccount()->getChildObject();
+
+        if ($amazonAccount->getMarketplace()->getChildObject()->isProductTaxCodePolicyAvailable() &&
+            $amazonAccount->isVatCalculationServiceEnabled()
+        ) {
+            $ptcTable = $this->activeRecordFactory->getObject('Amazon\Template\ProductTaxCode')
+                ->getResource()->getMainTable();
+            $collection->joinTable(
+                array('tptc' => $ptcTable),
+                'id=template_product_tax_code_id',
+                array(
+                    'template_product_tax_code_title' => 'title'
+                ),
+                null,
+                'left'
+            );
+        }
+
+        if ($collection->isNeedUseIndexerParent()) {
+            $collection->joinIndexerParent();
+        }
 
         // ---------------------------------------
 
@@ -273,15 +243,37 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             'frame_callback' => array($this, 'callbackColumnTemplateDescription')
         ));
 
+        $indexField = 'template_shipping_override_title';
+        $title = $this->__('Shipping Override Policy');
+
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeTemplate()) {
+            $indexField = 'template_shipping_template_title';
+            $title = $this->__('Shipping Template Policy');
+        }
+
         $this->addColumn('shipping_override_template', array(
-            'header' => $this->__('Shipping Override Policy'),
+            'header' => $title,
             'align' => 'left',
             'width' => '170px',
             'type' => 'text',
-            'index' => 'template_shipping_override_title',
-            'filter_index' => 'template_shipping_override_title',
-            'frame_callback' => array($this, 'callbackColumnTemplateShippingOverride')
+            'index' => $indexField,
+            'filter_index' => $indexField,
+            'frame_callback' => array($this, 'callbackColumnTemplateShipping')
         ));
+
+        if ($this->listing->getMarketplace()->getChildObject()->isProductTaxCodePolicyAvailable() &&
+            $this->listing->getAccount()->getChildObject()->isVatCalculationServiceEnabled()
+        ) {
+            $this->addColumn('product_tax_code_template', array(
+                'header' => $this->__('Product Tax Code Policy'),
+                'align' => 'left',
+                'width' => '170px',
+                'type' => 'text',
+                'index' => 'template_product_tax_code_title',
+                'filter_index' => 'template_product_tax_code_title',
+                'frame_callback' => array($this, 'callbackColumnTemplateProductTaxCode')
+            ));
+        }
 
         $this->addColumn('actions', array(
             'header'    => $this->__('Actions'),
@@ -304,10 +296,22 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
 
     protected function getGroupOrder()
     {
-        return array(
+        $groups = array(
             'edit_template_description' => $this->__('Description Policy'),
-            'edit_template_shipping_override' => $this->__('Shipping Override Policy'),
+            'edit_template_shipping'    => $this->__('Shipping Override Policy')
         );
+
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeTemplate()) {
+            $groups['edit_template_shipping'] = $this->__('Shipping Template Policy');
+        }
+
+        if ($this->listing->getMarketplace()->getChildObject()->isProductTaxCodePolicyAvailable() &&
+            $this->listing->getAccount()->getChildObject()->isVatCalculationServiceEnabled()
+        ) {
+            $groups['edit_template_product_tax_code'] = $this->__('Product Tax Code Policy');
+        }
+
+        return $groups;
     }
 
     protected function getColumnActionsItems()
@@ -326,21 +330,59 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 'field'   => 'id',
                 'onclick_action' => 'ListingGridHandlerObj.unassignTemplateDescriptionIdActionConfrim'
             ),
+        );
 
-            'assignTemplateShippingOverride' => array(
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeTemplate()) {
+
+            $actions['assignTemplateShipping'] = array(
                 'caption' => $this->__('Assign'),
-                'group'   => 'edit_template_shipping_override',
+                'group'   => 'edit_template_shipping',
+                'field'   => 'id',
+                'onclick_action' => 'ListingGridHandlerObj.actions[\'assignTemplateShippingTemplateIdAction\']'
+            );
+
+            $actions['unassignTemplateShipping'] = array(
+                'caption' => $this->__('Unassign'),
+                'group'   => 'edit_template_shipping',
+                'field'   => 'id',
+                'onclick_action' => 'ListingGridHandlerObj.unassignTemplateShippingTemplateIdActionConfrim'
+            );
+        }
+
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeOverride()) {
+
+            $actions['assignTemplateShippingOverride'] = array(
+                'caption' => $this->__('Assign'),
+                'group'   => 'edit_template_shipping',
                 'field'   => 'id',
                 'onclick_action' => 'ListingGridHandlerObj.actions[\'assignTemplateShippingOverrideIdAction\']'
-            ),
+            );
 
-            'unassignTemplateShippingOverride' => array(
+            $actions['unassignTemplateShippingOverride'] = array(
                 'caption' => $this->__('Unassign'),
-                'group'   => 'edit_template_shipping_override',
+                'group'   => 'edit_template_shipping',
                 'field'   => 'id',
                 'onclick_action' => 'ListingGridHandlerObj.unassignTemplateShippingOverrideIdActionConfrim'
-            )
-        );
+            );
+        }
+
+        if ($this->listing->getMarketplace()->getChildObject()->isProductTaxCodePolicyAvailable() &&
+            $this->listing->getAccount()->getChildObject()->isVatCalculationServiceEnabled()
+        ) {
+            $actions['assignTemplateProductTaxCode'] = array(
+                'caption' => $this->__('Assign'),
+                'group'   => 'edit_template_product_tax_code',
+                'field'   => 'id',
+                'onclick_action' => 'ListingGridHandlerObj.actions[\'assignTemplateProductTaxCodeIdAction\']'
+            );
+
+            $actions['unassignTemplateProductTaxCode'] = array(
+                'caption' => $this->__('Unassign'),
+                'group'   => 'edit_template_product_tax_code',
+                'field'   => 'id',
+                'onclick_action' => 'ListingGridHandlerObj.unassignTemplateProductTaxCodeIdActionConfrim'
+            );
+        }
 
         return $actions;
     }
@@ -359,9 +401,14 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         // ---------------------------------------
         $groups = array(
             'description_policy' => $this->__('Description Policy'),
-            'shipping_override_policy' => $this->__('Shipping Override Policy'),
+            'shipping_policy' => $this->__('Shipping Override Policy'),
+            'edit_template_product_tax_code' => $this->__('Product Tax Code Policy'),
             'other'              => $this->__('Other'),
         );
+
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeTemplate()) {
+            $groups['shipping_policy'] = $this->__('Shipping Template Policy');
+        }
 
         $this->getMassactionBlock()->setGroups($groups);
 
@@ -377,17 +424,51 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
             'confirm'  => $this->__('Are you sure?')
         ), 'description_policy');
 
-        $this->getMassactionBlock()->addItem('assignTemplateShippingOverrideId', array(
-            'label'    => $this->__('Assign'),
-            'url'      => '',
-            'confirm'  => $this->__('Are you sure?')
-        ), 'shipping_override_policy');
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeTemplate()) {
 
-        $this->getMassactionBlock()->addItem('unassignTemplateShippingOverrideId', array(
-            'label'    => $this->__('Unassign'),
-            'url'      => '',
-            'confirm'  => $this->__('Are you sure?')
-        ), 'shipping_override_policy');
+            $this->getMassactionBlock()->addItem('assignTemplateShippingTemplateId', array(
+                'label'   => $this->__('Assign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'shipping_policy');
+
+            $this->getMassactionBlock()->addItem('unassignTemplateShippingTemplateId', array(
+                'label'   => $this->__('Unassign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'shipping_policy');
+        }
+
+        if ($this->listing->getAccount()->getChildObject()->isShippingModeOverride()) {
+
+            $this->getMassactionBlock()->addItem('assignTemplateShippingOverrideId', array(
+                'label'   => $this->__('Assign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'shipping_policy');
+
+            $this->getMassactionBlock()->addItem('unassignTemplateShippingOverrideId', array(
+                'label'   => $this->__('Unassign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'shipping_policy');
+        }
+
+        if ($this->listing->getMarketplace()->getChildObject()->isProductTaxCodePolicyAvailable() &&
+            $this->listing->getAccount()->getChildObject()->isVatCalculationServiceEnabled()
+        ) {
+            $this->getMassactionBlock()->addItem('assignTemplateProductTaxCodeId', array(
+                'label'   => $this->__('Assign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'edit_template_product_tax_code');
+
+            $this->getMassactionBlock()->addItem('unassignTemplateProductTaxCodeId', array(
+                'label'   => $this->__('Unassign'),
+                'url'     => '',
+                'confirm' => $this->__('Are you sure?')
+            ), 'edit_template_product_tax_code');
+        }
 
         $this->getMassactionBlock()->addItem('moving', array(
             'label'    => $this->__('Move Item(s) to Another Listing'),
@@ -557,7 +638,7 @@ HTML;
         $generalIdSearchInfo = $row->getData('general_id_search_info');
 
         if (!empty($generalIdSearchInfo)) {
-            $generalIdSearchInfo = json_decode($generalIdSearchInfo, true);
+            $generalIdSearchInfo = $this->getHelper('Data')->jsonDecode($generalIdSearchInfo);
         }
 
         if (!empty($generalIdSearchInfo['is_set_automatic'])) {
@@ -588,7 +669,8 @@ HTML;
         if ($row->getData('template_description_id')) {
 
             $url = $this->getUrl('*/amazon_template_description/edit', array(
-                'id' => $row->getData('template_description_id')
+                'id' => $row->getData('template_description_id'),
+                'close_on_save' => true
             ));
 
             $templateTitle = $this->getHelper('Data')->escapeHtml($row->getData('template_description_title'));
@@ -601,17 +683,58 @@ HTML;
         return $html;
     }
 
-    public function callbackColumnTemplateShippingOverride($value, $row, $column, $isExport)
+    public function callbackColumnTemplateShipping($value, $row, $column, $isExport)
     {
         $html = $this->__('N/A');
 
-        if ($row->getData('template_shipping_override_id')) {
+        if (
+            $this->listing->getAccount()->getChildObject()->isShippingModeOverride()
+            && $row->getData('template_shipping_override_id')
+        ) {
 
             $url = $this->getUrl('*/amazon_template_shippingOverride/edit', array(
-                'id' => $row->getData('template_shipping_override_id')
+                'id' => $row->getData('template_shipping_override_id'),
+                'close_on_save' => true
             ));
 
             $templateTitle = $this->getHelper('Data')->escapeHtml($row->getData('template_shipping_override_title'));
+
+            return <<<HTML
+<a target="_blank" href="{$url}">{$templateTitle}</a>
+HTML;
+        }
+
+        if (
+            $this->listing->getAccount()->getChildObject()->isShippingModeTemplate()
+            && $row->getData('template_shipping_template_id')
+        ) {
+
+            $url = $this->getUrl('*/amazon_template_shippingTemplate/edit', array(
+                'id' => $row->getData('template_shipping_template_id'),
+                'close_on_save' => true
+            ));
+
+            $templateTitle = $this->getHelper('Data')->escapeHtml($row->getData('template_shipping_template_title'));
+
+            return <<<HTML
+<a target="_blank" href="{$url}">{$templateTitle}</a>
+HTML;
+        }
+
+        return $html;
+    }
+
+    public function callbackColumnTemplateProductTaxCode($value, $row, $column, $isExport)
+    {
+        $html = $this->__('N/A');
+
+        if ($row->getData('template_product_tax_code_id')) {
+
+            $url = $this->getUrl('*/amazon_template_productTaxCode/edit', array(
+                'id' => $row->getData('template_product_tax_code_id')
+            ));
+
+            $templateTitle = $this->getHelper('Data')->escapeHtml($row->getData('template_product_tax_code_title'));
 
             return <<<HTML
 <a target="_blank" href="{$url}">{$templateTitle}</a>

@@ -72,9 +72,13 @@ class Log extends \Ess\M2ePro\Model\Listing\Log
                 $productOptions = $variationManager->getTypeModel()->getProductOptions();
 
                 if (!empty($productOptions)) {
-                    $dataForAdd['additional_data'] = (array)json_decode($dataForAdd['additional_data'], true);
+                    $dataForAdd['additional_data'] = (array)$this->getHelper('Data')->jsonDecode(
+                        $dataForAdd['additional_data']
+                    );
                     $dataForAdd['additional_data']['variation_options'] = $productOptions;
-                    $dataForAdd['additional_data'] = json_encode($dataForAdd['additional_data']);
+                    $dataForAdd['additional_data'] = $this->getHelper('Data')->jsonEncode(
+                        $dataForAdd['additional_data']
+                    );
                 }
             }
 

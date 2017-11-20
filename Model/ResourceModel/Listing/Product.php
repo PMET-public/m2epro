@@ -50,7 +50,7 @@ class Product extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Par
 
     public function getItemsByProductId($productId, array $filters = array())
     {
-        $cacheKey   = __METHOD__.$productId.sha1(json_encode($filters));
+        $cacheKey   = __METHOD__.$productId.sha1($this->getHelper('Data')->jsonEncode($filters));
         $cacheValue = $this->getHelper('Data\Cache\Runtime')->getValue($cacheKey);
 
         if (!is_null($cacheValue)) {
@@ -301,6 +301,17 @@ class Product extends \Ess\M2ePro\Model\ResourceModel\ActiveRecord\Component\Par
         }
 
         return array_values($results);
+    }
+
+    //########################################
+
+    public function setNeedSynchRulesCheck(array $listingsProductsIds)
+    {
+        $this->getConnection()->update(
+            $this->getMainTable(),
+            array('need_synch_rules_check' => 1),
+            array('id IN (?)' => $listingsProductsIds)
+        );
     }
 
     //########################################

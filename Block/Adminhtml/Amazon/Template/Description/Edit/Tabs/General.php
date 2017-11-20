@@ -67,7 +67,7 @@ class General extends \Ess\M2ePro\Block\Adminhtml\Magento\Form\AbstractForm
                     you should enable New ASIN/ISBN Creation feature.<br/><br/>
                     More detailed information about ability to work with this Page you can find
                     <a href="%url%" target="_blank" class="external-link">here</a>.',
-                        $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/HoMVAQ')
+                        $this->getHelper('Module\Support')->getDocumentationArticleUrl('x/EAItAQ')
                 )
             ]
         );
@@ -534,14 +534,18 @@ HTML;
             'Recent'      => $this->__('Recent'),
         ]);
 
-        $formData = json_encode($this->formData);
+        $formData = $this->getHelper('Data')->jsonEncode($this->formData);
         $isEdit = $this->templateModel->getId() ? 'true' : 'false';
         $isCategoryLocked = $this->isCategoryLocked() ? 'true' : 'false';
         $isMarketplaceLocked = $this->isMarketplaceLocked() ? 'true' : 'false';
-        $marketplaceForceSet = json_encode((bool)(int)$this->getRequest()->getParam('marketplace_id'));
+        $marketplaceForceSet = $this->getHelper('Data')->jsonEncode(
+            (bool)(int)$this->getRequest()->getParam('marketplace_id')
+        );
         $isLockedNewAsin = $this->isNewAsinSwitcherLocked() ? 'true' : 'false';
-        $newAsinSwitcherForceSet = json_encode((bool)(int)$this->getRequest()->getParam('is_new_asin_accepted'));
-        $allAttributes = json_encode($this->getHelper('Magento\Attribute')->getAll());
+        $newAsinSwitcherForceSet = $this->getHelper('Data')->jsonEncode(
+            (bool)(int)$this->getRequest()->getParam('is_new_asin_accepted')
+        );
+        $allAttributes = $this->getHelper('Data')->jsonEncode($this->getHelper('Magento\Attribute')->getAll());
 
         $this->js->addRequireJs([
             'jQuery' => 'jquery',
@@ -574,8 +578,10 @@ HTML;
         M2ePro.customData.new_asin_switcher_locked    = {$isLockedNewAsin};
         M2ePro.customData.new_asin_switcher_force_set = {$newAsinSwitcherForceSet};
 
-        window.AttributeObj = new Attribute();
-        AttributeObj.setAvailableAttributes({$allAttributes});
+        if (typeof AttributeObj === 'undefined') {
+            window.AttributeObj = new Attribute();
+        }
+        window.AttributeObj.setAvailableAttributes({$allAttributes});
 
         window.AmazonTemplateDescriptionObj                 = new AmazonTemplateDescription();
         window.AmazonTemplateDescriptionCategoryChooserObj  = new AmazonTemplateDescriptionCategoryChooser();

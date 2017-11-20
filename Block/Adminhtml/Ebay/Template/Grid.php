@@ -260,6 +260,7 @@ class Grid extends AbstractGrid
             'index'     => 'actions',
             'filter'    => false,
             'sortable'  => false,
+            'renderer'  => '\Ess\M2ePro\Block\Adminhtml\Magento\Grid\Column\Renderer\Action',
             'getter'    => 'getTemplateId',
             'actions'   => array(
                 array(
@@ -267,9 +268,11 @@ class Grid extends AbstractGrid
                     'class'     => 'action-default scalable add primary policy-delete-btn',
                     'url'       => array(
                         'base' => '*/ebay_template/delete',
-                        'params' => array('nick' => '$nick')
+                        'params' => array(
+                            'nick' => '$nick'
+                        )
                     ),
-                    'field'     => 'id',
+                    'field'    => 'id',
                     'confirm'  => $this->__('Are you sure?')
                 )
             )

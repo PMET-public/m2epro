@@ -75,21 +75,10 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
         $collection = $this->magentoProductCollectionFactory->create();
 
         $collection->getSelect()->group('e.entity_id');
+        $collection->setListing($this->listing->getId());
 
-        $collection->setListingProductModeOn();
-        $collection->addAttributeToSelect('sku');
-        $collection->addAttributeToSelect('name');
-
-        $collection->joinTable(
-            array('cisi' => 'cataloginventory_stock_item'),
-            'product_id=entity_id',
-            array(
-                'qty' => 'qty',
-                'is_in_stock' => 'is_in_stock'
-            ),
-            '{{table}}.stock_id=1',
-            'left'
-        );
+        $collection->addAttributeToSelect('name')
+            ->joinStockItem(array('qty' => 'qty', 'is_in_stock' => 'is_in_stock'));
 
         // ---------------------------------------
 
@@ -117,8 +106,8 @@ class Grid extends \Ess\M2ePro\Block\Adminhtml\Listing\View\Grid
                 'general_id'        => 'general_id',
                 'amazon_sku'        => 'sku',
                 'online_qty'        => 'online_qty',
-                'online_price'      => 'online_price',
-                'online_sale_price' => 'online_sale_price',
+                'online_regular_price'      => 'online_regular_price',
+                'online_regular_sale_price' => 'online_regular_sale_price',
                 'is_afn_channel'    => 'is_afn_channel'
             ),
             NULL,

@@ -202,6 +202,14 @@ class Form extends AbstractForm
             ]
         );
 
+        $fieldset->addField('template_selling_format_messages',
+            self::CUSTOM_CONTAINER,
+            [
+                'style' => 'display: block;',
+                'css_class' => 'm2epro-fieldset-table no-margin-bottom'
+            ]
+        );
+
         $sellingFormatTemplates = $this->getSellingFormatTemplates();
         $style = count($sellingFormatTemplates) === 0 ? 'display: none' : '';
 
@@ -230,7 +238,7 @@ class Form extends AbstractForm
             'template_selling_format_container',
             self::CUSTOM_CONTAINER,
             [
-                'label' => $this->__('Selling Format Policy'),
+                'label' => $this->__('Price, Quantity and Format Policy'),
                 'style' => 'line-height: 34px; display: initial;',
                 'required' => true,
                 'text' => <<<HTML
@@ -364,10 +372,10 @@ HTML
         );
 
         $preparedAttributes = [];
-        foreach ($attributesByTypes['text'] as $attribute) {
+        foreach ($attributesByTypes['text_select'] as $attribute) {
             $attrs = ['attribute_code' => $attribute['code']];
             if (
-                $formData['sku_mode'] == \Ess\M2ePro\Model\Amazon\Listing::SKU_MODE_CUSTOM_ATTRIBUTE
+                $formData['condition_mode'] == \Ess\M2ePro\Model\Amazon\Listing::SKU_MODE_CUSTOM_ATTRIBUTE
                 && $attribute['code'] == $formData['condition_custom_attribute']
             ) {
                 $attrs['selected'] = 'selected';
@@ -447,9 +455,11 @@ HTML
             'textarea',
             [
                 'container_id' => 'condition_note_value_tr',
-                'name' => 'condition_note_value',
-                'label' => $this->__('Condition Note Value'),
-                'style' => 'width: 70%;',
+                'name'         => 'condition_note_value',
+                'label'        => $this->__('Condition Note Value'),
+                'style'        => 'width: 70%;',
+                'class'        => 'textarea M2ePro-required-when-visible',
+                'required'     => true,
                 'after_element_html' => $this->createBlock('Magento\Button\MagentoAttribute')->addData([
                     'label' => $this->__('Insert Attribute'),
                     'destination_id' => 'condition_note_value',
@@ -461,7 +471,7 @@ HTML
                         'apply_to_all_attribute_sets' => 0
                     ],
                 ])->toHtml(),
-                'value' => $this->getHelper('Data')->escapeHtml($this->getData('condition_note_value'))
+                'value' => $this->getData('condition_note_value')
             ]
         );
 
@@ -547,7 +557,7 @@ HTML
 
         $preparedLimitOptions[] = [
             'attrs' => ['attribute_code' => 1],
-            'value' => '',
+            'value' => 1,
             'label' => 1,
         ];
         if ($formData['gallery_images_limit'] == 1 &&
@@ -968,6 +978,8 @@ HTML
             )
         ]);
 
+        $this->jsUrl->add($this->getUrl('*/template/checkMessages',
+            ['component_mode' => \Ess\M2ePro\Helper\Component\Amazon::NICK]), 'templateCheckMessages');
         $this->jsUrl->add($this->getUrl('*/amazon_template_sellingFormat/new',
             ['wizard' => $this->getRequest()->getParam('wizard')]), 'addNewSellingFormatTemplate');
         $this->jsUrl->add($this->getUrl('*/amazon_template_synchronization/new',
@@ -1002,13 +1014,36 @@ HTML
             )
         );
 
+        $listingData = $this->getListingData();
+
+        $marketplaceId = null;
+        $storeId = null;
+
+        if (isset($listingData['marketplace_id'])) {
+            $marketplaceId = (int)$listingData['marketplace_id'];
+        } else if (isset($listingData['account_id'])) {
+            $accountObj =$this->amazonFactory->getCachedObjectLoaded('Account', (int)$listingData['account_id']);
+            $marketplaceId = (int)$accountObj->getChildObject()->getMarketplaceId();
+        }
+
+        if (isset($listingData['store_id'])) {
+            $storeId = (int)$listingData['store_id'];
+        }
+
         $this->js->add(<<<JS
 require([
+    'M2ePro/TemplateHandler',
     'M2ePro/Amazon/Listing/Settings',
     'M2ePro/Amazon/Listing/Create/Selling',
-    'M2ePro/Plugin/Magento/Attribute/Button',
+    'M2ePro/Plugin/Magento/Attribute/Button'
 ], function(){
+
+    window.TemplateHandlerObj = new TemplateHandler();
+
     window.AmazonListingSettingsObj = new AmazonListingSettings();
+    window.AmazonListingSettingsObj.storeId = '{$storeId}';
+    window.AmazonListingSettingsObj.marketplaceId = '{$marketplaceId}';
+
     window.AmazonListingCreateSellingObj = new AmazonListingCreateSelling();
     window.MagentoAttributeButtonObj = new MagentoAttributeButton();
 
@@ -1048,8 +1083,7 @@ require([
     $('condition_mode').observe('change', AmazonListingCreateSellingObj.condition_mode_change)
         .simulate('change');
 
-    $('condition_note_mode').observe('change', AmazonListingCreateSellingObj.condition_note_mode_change)
-        .simulate('change');
+    $('condition_note_mode').observe('change', AmazonListingCreateSellingObj.condition_note_mode_change);
 
     $('image_main_mode')
         .observe('change', AmazonListingCreateSellingObj.image_main_mode_change)

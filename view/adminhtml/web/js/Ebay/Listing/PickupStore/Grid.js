@@ -46,7 +46,7 @@ define([
                     continueBtn.stopObserving().observe('click', function() {
                         var checkedIds = EbayListingPickupStoreStepProductsGridObj.getCheckedValues();
                         if (checkedIds == '') {
-                            alert('Please select Items.');
+                            self.alert('Please select Items.');
                             return;
                         }
 
@@ -96,7 +96,7 @@ define([
                             storesIds = EbayListingPickupStoreStepStoresGridObj.getCheckedValues();
 
                         if (productsIds == '' || storesIds == '') {
-                            alert('Please select Stores.');
+                            self.alert('Please select Stores.');
                             return;
                         }
 
@@ -119,7 +119,7 @@ define([
                 onSuccess: function(transport) {
 
                     if (!transport.responseText.isJSON()) {
-                        alert(transport.responseText);
+                        self.alert(transport.responseText);
                         return;
                     }
 
@@ -314,7 +314,7 @@ define([
                         });
 
                         this.logPopup = jQuery(modalDialogMessage).modal({
-                            title: M2ePro.translator.translate('Log For Sku ' + rowId),
+                            title: M2ePro.translator.translate('Log For SKU ' + rowId),
                             type: 'slide',
                             buttons: []
                         });
@@ -322,7 +322,7 @@ define([
 
                     modalDialogMessage.up('.modal-inner-wrap')
                                       .down('.modal-title')
-                                      .innerHTML = M2ePro.translator.translate('Log For Sku ' + rowId);
+                                      .innerHTML = M2ePro.translator.translate('Log For SKU ' + rowId);
                     this.logPopup.modal('openModal');
 
                     modalDialogMessage.innerHTML = '';

@@ -80,9 +80,9 @@ class Marketplace extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\
     /**
      * @return bool
      */
-    public function isAsinAvailable()
+    public function isNewAsinAvailable()
     {
-        return (bool)$this->getData('is_asin_available');
+        return (bool)$this->getData('is_new_asin_available');
     }
 
     /**
@@ -93,20 +93,28 @@ class Marketplace extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\
         return (bool)$this->getData('is_merchant_fulfillment_available');
     }
 
-    //########################################
+    /**
+     * @return bool
+     */
+    public function isBusinessAvailable()
+    {
+        return (bool)$this->getData('is_business_available');
+    }
 
     /**
      * @return bool
      */
-    public function isNewAsinAvailable()
+    public function isVatCalculationServiceAvailable()
     {
-        $newAsinNotImplementedMarketplaces = array(
-            \Ess\M2ePro\Helper\Component\Amazon::MARKETPLACE_CA,
-            \Ess\M2ePro\Helper\Component\Amazon::MARKETPLACE_JP,
-            \Ess\M2ePro\Helper\Component\Amazon::MARKETPLACE_CN,
-        );
+        return (bool)$this->getData('is_vat_calculation_service_available');
+    }
 
-        return !in_array((int)$this->getId(),$newAsinNotImplementedMarketplaces);
+    /**
+     * @return bool
+     */
+    public function isProductTaxCodePolicyAvailable()
+    {
+        return (bool)$this->getData('is_product_tax_code_policy_available');
     }
 
     //########################################

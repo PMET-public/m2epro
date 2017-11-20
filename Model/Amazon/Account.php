@@ -10,6 +10,9 @@ namespace Ess\M2ePro\Model\Amazon;
 
 class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\AbstractModel
 {
+    const SHIPPING_MODE_OVERRIDE   = 0;
+    const SHIPPING_MODE_TEMPLATE   = 1;
+
     const OTHER_LISTINGS_SYNCHRONIZATION_NO  = 0;
     const OTHER_LISTINGS_SYNCHRONIZATION_YES = 1;
 
@@ -255,7 +258,33 @@ class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\Abst
     public function getDecodedInfo()
     {
         $tempInfo = $this->getInfo();
-        return is_null($tempInfo) ? NULL : json_decode($tempInfo,true);
+        return is_null($tempInfo) ? NULL : $this->getHelper('Data')->jsonDecode($tempInfo);
+    }
+
+    //########################################
+
+    /**
+     * @return int
+     */
+    public function getShippingMode()
+    {
+        return (int)$this->getData('shipping_mode');
+    }
+
+    /**
+     * @return bool
+     */
+    public function isShippingModeOverride()
+    {
+        return $this->getShippingMode() == self::SHIPPING_MODE_OVERRIDE;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isShippingModeTemplate()
+    {
+        return $this->getShippingMode() == self::SHIPPING_MODE_TEMPLATE;
     }
 
     //########################################
@@ -910,6 +939,24 @@ class Account extends \Ess\M2ePro\Model\ActiveRecord\Component\Child\Amazon\Abst
         $setting = $this->getSetting('magento_orders_settings', array('fba', 'stock_mode'));
 
         return $setting == self::MAGENTO_ORDERS_FBA_STOCK_MODE_YES;
+    }
+
+    //########################################
+
+    /**
+     * @return bool
+     */
+    public function isVatCalculationServiceEnabled()
+    {
+        return (bool)$this->getData('is_vat_calculation_service_enabled');
+    }
+
+    /**
+     * @return bool
+     */
+    public function isMagentoInvoiceCreationDisabled()
+    {
+        return (bool)$this->getData('is_magento_invoice_creation_disabled');
     }
 
     //########################################

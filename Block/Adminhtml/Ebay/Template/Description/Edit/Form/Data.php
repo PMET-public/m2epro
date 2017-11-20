@@ -46,7 +46,7 @@ class Data extends AbstractForm
         $formData = $this->getFormData();
 
         $default = $this->getDefault();
-        $formData = $this->getHelper('Data')->arrayReplaceRecursive($default, $formData);
+        $formData = array_replace_recursive($default, $formData);
 
         $isCustomDescription = ($formData['description_mode'] == Description::DESCRIPTION_MODE_CUSTOM);
 
@@ -64,7 +64,7 @@ class Data extends AbstractForm
             'hidden',
             [
                 'name' => 'description[title]',
-                'value' => $this->getHelper('Data')->escapeHtml($this->getTitle())
+                'value' => $this->getTitle()
             ]
         );
 
@@ -750,6 +750,7 @@ HTML
                     'magento_attributes' => $preparedAttributes,
                     'class' => 'select_attributes_for_title_button primary',
                     'select_custom_attributes' => [
+                        'allowed_attribute_types' => 'text,select,multiselect,boolean,price,date',
                         'apply_to_all_attribute_sets' => 0
                     ],
                 ])->toHtml()
@@ -798,6 +799,7 @@ HTML
                     'magento_attributes' => $preparedAttributes,
                     'class' => 'select_attributes_for_title_button primary',
                     'select_custom_attributes' => [
+                        'allowed_attribute_types' => 'text,select,multiselect,boolean,price,date',
                         'apply_to_all_attribute_sets' => 0
                     ],
                 ])->toHtml()
@@ -895,7 +897,13 @@ HTML
                 'wysiwyg' => true,
                 'force_load' => true,
                 'config' => new \Magento\Framework\DataObject([
-                    'enabled' => true
+                    'hidden' => true,
+                    'enabled' => true,
+                    'settings' => [
+                        'force_br_newlines' => false,
+                        'force_p_newlines'  => false,
+                        'forced_root_block' => false
+                    ]
                 ]),
                 'after_element_html' => <<<HTML
 <div id="description_template_buttons">
@@ -1139,7 +1147,7 @@ HTML
         );
 
         $preparedAttributes = [];
-        foreach ($generalAttributesByTypes['text'] as $attribute) {
+        foreach ($generalAttributesByTypes['text_select'] as $attribute) {
             $attrs = ['attribute_code' => $attribute['code']];
             if (
                 $formData['product_details']['brand']['mode'] == Description::PRODUCT_DETAILS_MODE_ATTRIBUTE
@@ -1405,9 +1413,11 @@ HTML
     require([
         'M2ePro/Attribute',
         'M2ePro/Ebay/Template/Description',
-        'M2ePro/Plugin/Magento/Attribute/Button',
+        'M2ePro/Plugin/Magento/Attribute/Button'
     ], function(){
-        window.AttributeObj = new Attribute();
+        if (typeof AttributeObj === 'undefined') {
+            window.AttributeObj = new Attribute();
+        }
         window.EbayTemplateDescriptionObj = new EbayTemplateDescription();
         EbayTemplateDescriptionObj.initObservers();
         {$initWYSIWYG}
@@ -1468,20 +1478,22 @@ JS
         }
 
         if (!empty($data['product_details']) && is_string($data['product_details'])) {
-            $data['product_details'] = json_decode($data['product_details'], true);
+            $data['product_details'] = $this->getHelper('Data')->jsonDecode($data['product_details']);
         } else {
             unset($data['product_details']);
         }
 
         if (!empty($data['variation_configurable_images']) && is_string($data['variation_configurable_images'])) {
-            $data['variation_configurable_images'] = json_decode($data['variation_configurable_images'], true);
+            $data['variation_configurable_images'] = $this->getHelper('Data')->jsonDecode(
+                $data['variation_configurable_images']
+            );
         } else {
             unset($data['variation_configurable_images']);
         }
 
         if (!empty($data['watermark_settings']) && is_string($data['watermark_settings'])) {
 
-            $watermarkSettings = json_decode($data['watermark_settings'], true);
+            $watermarkSettings = $this->getHelper('Data')->jsonDecode($data['watermark_settings']);
             unset($data['watermark_settings']);
 
             if (isset($watermarkSettings['position'])) {
@@ -1514,9 +1526,11 @@ JS
         $default = $this->activeRecordFactory->getObject('Ebay\Template\Description')->getDefaultSettings();
 
         $default['enhancement'] = explode(',', $default['enhancement']);
-        $default['product_details'] = json_decode($default['product_details'], true);
-        $default['variation_configurable_images'] = json_decode($default['variation_configurable_images'], true);
-        $default['watermark_settings'] = json_decode($default['watermark_settings'], true);
+        $default['product_details'] = $this->getHelper('Data')->jsonDecode($default['product_details']);
+        $default['variation_configurable_images'] = $this->getHelper('Data')->jsonDecode(
+            $default['variation_configurable_images']
+        );
+        $default['watermark_settings'] = $this->getHelper('Data')->jsonDecode($default['watermark_settings']);
 
         return $default;
     }
@@ -1565,6 +1579,18 @@ JS
             'reserve_price' => $this->__('Reserve Price'),
             'buyitnow_price' => $this->__('Buy It Now Price'),
             'qty' => $this->__('QTY'),
+            'main_image' => $this->__('Base Image Url'),
+            'gallery_image[1]' => $this->__('Gallery Image URL 1'),
+            'gallery_image[2]' => $this->__('Gallery Image URL 2'),
+            'gallery_image[3]' => $this->__('Gallery Image URL 3'),
+            'gallery_image[4]' => $this->__('Gallery Image URL 4'),
+            'gallery_image[5]' => $this->__('Gallery Image URL 5'),
+            'gallery_image[6]' => $this->__('Gallery Image URL 6'),
+            'gallery_image[7]' => $this->__('Gallery Image URL 7'),
+            'gallery_image[8]' => $this->__('Gallery Image URL 8'),
+            'gallery_image[9]' => $this->__('Gallery Image URL 9'),
+            'gallery_image[10]' => $this->__('Gallery Image URL 10'),
+            'gallery_image[11]' => $this->__('Gallery Image URL 11'),
             'listing_type' => $this->__('Listing Type'),
             'listing_duration' => $this->__('Listing Duration'),
             'handling_time' => $this->__('Dispatch Time'),

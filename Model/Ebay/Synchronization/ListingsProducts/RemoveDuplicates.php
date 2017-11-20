@@ -8,7 +8,7 @@
 
 namespace Ess\M2ePro\Model\Ebay\Synchronization\ListingsProducts;
 
-final class RemoveDuplicates extends AbstractModel
+class RemoveDuplicates extends AbstractModel
 {
     const BLOCKED_PRODUCTS_PER_SYNCH = 10;
     const MAX_ALLOWED_BLOCKED_PRODUCTS = 100;
@@ -293,7 +293,7 @@ final class RemoveDuplicates extends AbstractModel
         $logModel = $this->activeRecordFactory->getObject('Listing\Log');
         $logModel->setComponentMode(\Ess\M2ePro\Helper\Component\Ebay::NICK);
 
-        $logsActionId = $logModel->getNextActionId();
+        $logsActionId = $logModel->getResource()->getNextActionId();
 
         $statusLogMessage = $this->getStatusLogMessage($listingProduct->getStatus(), $status);
 
@@ -314,7 +314,7 @@ final class RemoveDuplicates extends AbstractModel
 
         $listingProduct->addData(array(
             'status' => $status,
-            'additional_data' => json_encode($additionalData),
+            'additional_data' => $this->getHelper('Data')->jsonEncode($additionalData),
         ))->save();
 
         $listingProduct->getChildObject()->updateVariationsStatus();

@@ -32,16 +32,6 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
 
     //########################################
 
-    /**
-     * @return string
-     */
-    public function getLastActionIdConfigKey()
-    {
-        return 'ebay_pickup_store';
-    }
-
-    //########################################
-
     public function addMessage($accountPickupStoreStateId,
                                $actionId = NULL,
                                $action = NULL,
@@ -95,7 +85,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
         if (!is_null($actionId)) {
             $dataForAdd['action_id'] = (int)$actionId;
         } else {
-            $dataForAdd['action_id'] = $this->getNextActionId();
+            $dataForAdd['action_id'] = $this->getResource()->getNextActionId();
         }
 
         if (!is_null($action)) {
@@ -122,7 +112,7 @@ class Log extends \Ess\M2ePro\Model\Log\AbstractModel
             $dataForAdd['priority'] = self::PRIORITY_LOW;
         }
 
-        $dataForAdd['additional_data'] = json_encode($additionalData);
+        $dataForAdd['additional_data'] = $this->getHelper('Data')->jsonEncode($additionalData);
 
         return $dataForAdd;
     }
