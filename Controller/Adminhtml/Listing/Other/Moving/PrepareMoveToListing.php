@@ -36,7 +36,7 @@ class PrepareMoveToListing extends Listing
 
             $listingOtherCollection->getSelect()->join(
                 array('cpe'=>$this->resourceConnection->getTableName('catalog_product_entity')),
-                '`main_table`.`product_id` = `cpe`.`row_id`'
+                '`main_table`.`product_id` = `cpe`.`entity_id`'
             );
 
             $tempData = $listingOtherCollection

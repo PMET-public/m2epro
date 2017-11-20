@@ -23,8 +23,8 @@ abstract class Moving extends \Ess\M2ePro\Controller\Adminhtml\Listing
         $table = $this->resourceConnection->getTableName('catalog_product_entity');
         $dbSelect = $this->resourceConnection->getConnection()
             ->select()
-            ->from($table,new \Zend_Db_Expr('DISTINCT `row_id`'))
-            ->where('`row_id` = ?',(int)$productId);
+            ->from($table,new \Zend_Db_Expr('DISTINCT `entity_id`'))
+            ->where('`entity_id` = ?',(int)$productId);
 
         $productArray = $this->resourceConnection->getConnection()->fetchCol($dbSelect);
 
